@@ -1,0 +1,60 @@
+{
+  "name": "@gametheory-school/skal",
+  "version": "0.1.0",
+  "description": "gameTheory conversational UI framework — clarify-then-execute engine, action cards, skill definitions",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gametheory-school/skal.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./ui": {
+      "types": "./dist/ui.d.ts",
+      "import": "./dist/ui.mjs",
+      "require": "./dist/ui.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "test:esm": "node --input-type=module -e \"await import('./dist/index.mjs'); await import('./dist/ui.mjs')\""
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "next": ">=14.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "next": "16.2.12",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.27.7": true
+  }
+}
