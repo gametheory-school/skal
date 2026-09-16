@@ -59,3 +59,38 @@ After making code changes to any source file, the agent MUST run at least one va
 | Logic in `src/` (non-UI) | typecheck + `npm run test` |
 | UI components only | typecheck |
 | `tsup.config.ts` / `package.json` `exports` or `files` | `npm run build` + `npm pack --dry-run` inspection |
+
+# Versioning
+
+## Policy
+
+- Follows [semver](https://semver.org). During `0.x`, minor bumps may include breaking changes (per semver convention).
+- Changelog format: [Keep a Changelog](https://keepachangelog.com) — sections: `Added`, `Changed`, `Fixed`, `Removed`, `Consumer impact`.
+- Every CHANGELOG entry must include a `Consumer impact` subsection so adopters know what to do on upgrade.
+
+## Release Process
+
+1. **Update CHANGELOG.md** — add a new section at the top with the version number and date.
+2. **Bump version** — run one of:
+   - `npm run release:patch` — bug fixes, no API changes
+   - `npm run release:minor` — new features, backward-compatible API additions (or breaking during 0.x)
+   - `npm run release:major` — breaking changes (post-1.0 only)
+3. **Commit** — commit `package.json`, `package-lock.json`, and `CHANGELOG.md` together in one commit:
+   ```
+   git add package.json package-lock.json CHANGELOG.md
+   git commit -m "release: vX.Y.Z"
+   git push
+   ```
+4. **Create GitHub release** — go to github.com/gametheory-school/skal/releases → Draft new release → tag `vX.Y.Z` targeting the release commit → publish.
+5. **Publish triggers automatically** — `.github/workflows/publish.yml` runs typecheck + test + build + `npm publish` to GitHub Packages.
+
+## What warrants a version bump
+
+| Change | Bump |
+|---|---|
+| Bug fix in existing behavior | patch |
+| New exported function/type/component | minor |
+| Renamed/removed export, changed function signature | minor (0.x) or major (1.x+) |
+| New peer dependency requirement | minor (0.x) or major (1.x+) |
+| Internal refactor, no API change | patch |
+| Documentation only | no bump |

@@ -2,6 +2,7 @@
 export { StateMachine } from './engine/state-machine.js'
 export { SkillRegistry } from './engine/registry.js'
 export { Dispatcher } from './engine/dispatcher.js'
+export { SkillRouter } from './engine/router.js'
 
 // ─── Fields ───────────────────────────────────────────────────────
 export {
@@ -35,3 +36,5 @@ export type {
 } from './fields/extract.js'
 
 export type { ValidationResult } from './fields/validate.js'
+
+export type { RouteResult, RouterOptions } from './engine/router.js'

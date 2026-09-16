@@ -9,6 +9,7 @@ const journalEntrySchema = z.object({
 
 export const journalEntrySkill: SkillDefinition = {
   id: 'journal.entry',
+  description: 'Create a new journal entry with a title, content, and optional tags',
   fieldSchema: journalEntrySchema,
   questions: {
     title: "What's the title?",

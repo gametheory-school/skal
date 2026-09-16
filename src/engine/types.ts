@@ -20,10 +20,14 @@ export interface FieldSpec {
 
 export interface SkillDefinition {
   id: string
+  /** Human-readable description for intent routing (e.g., "Create a new journal entry"). */
+  description?: string
   /** Drives FieldSpec generation + validation. */
   fieldSchema: z.ZodSchema
   /** Field key → question text. */
   questions: Record<string, string>
+  /** Optional field metadata (inputType, label, etc.) for FieldSpec generation. */
+  fieldMeta?: Record<string, { inputType: InputType; label: string; multiline?: boolean; options?: Array<{ value: string; label: string }> }>
   /** Checked via PermissionGate. */
   requiredRole?: string
   platformOnly?: boolean
