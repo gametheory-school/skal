@@ -18,6 +18,7 @@ export { checkAtCompose, checkBeforeDispatch } from './permissions/gate.js'
 // ─── Types ────────────────────────────────────────────────────────
 export type {
   InputType,
+  FieldMetaInput,
   FieldSpec,
   SkillDefinition,
   SkillHandler,

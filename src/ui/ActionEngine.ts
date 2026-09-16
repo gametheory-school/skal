@@ -7,6 +7,7 @@ import type {
   PermissionGate,
   HandlerResult,
   ScheduleTrigger,
+  FieldMetaInput,
 } from '../engine/types.js'
 import type { ExtractionLLM, ExtractionResult } from '../fields/extract.js'
 import { extractFields } from '../fields/extract.js'
@@ -44,6 +45,7 @@ export interface EngineSnapshot {
   errors: Record<string, string>
   allFieldSpecs: FieldSpec[]
   dispatching: boolean
+  preparing: boolean
 }
 
 // ─── Listener ──────────────────────────────────────────────────────
@@ -68,8 +70,10 @@ export class ActionEngine {
   private _allFieldSpecs: FieldSpec[] = []
   private _dispatching = false
   private _routing = false
+  private _preparing = false
   private _pendingReset = false
   private _routeQueue: Promise<unknown> = Promise.resolve()
+  private _resolvedFieldMeta: Record<string, FieldMetaInput> | undefined = undefined
 
   private listeners = new Set<Listener>()
 
@@ -108,6 +112,7 @@ export class ActionEngine {
       errors: this._errors,
       allFieldSpecs: this._allFieldSpecs,
       dispatching: this._dispatching,
+      preparing: this._preparing,
     }
   }
 
@@ -116,8 +121,9 @@ export class ActionEngine {
   /**
    * Select a skill and enter the clarify loop.
    * If not idle, resets first (allows switching skills mid-flow).
+   * Calls skill.prepare() if defined to fetch dynamic field metadata.
    */
-  selectSkill(skillId: string, extractedFields?: Record<string, unknown>): boolean {
+  async selectSkill(skillId: string, extractedFields?: Record<string, unknown>): Promise<boolean> {
     const skill = this.registry.get(skillId)
     if (!skill) return false
 
@@ -127,14 +133,22 @@ export class ActionEngine {
         this.resetInternal()
       }
 
-      // Permission check at compose-time.
-      // (We do this synchronously via a fire-and-forget approach —
-      //  but actually we need to await it. Let's make this work.)
-      // For now, we proceed optimistically and let dispatch() re-check.
-      // The compose-time check is best-effort.
-
       this._activeSkillId = skillId
-      this._allFieldSpecs = buildFieldSpecs(skill.fieldSchema, skill.questions, skill.fieldMeta)
+
+      // Resolve fieldMeta: call prepare() if defined.
+      let resolvedMeta = skill.fieldMeta
+      if (skill.prepare) {
+        this._preparing = true
+        this.notify()
+        try {
+          resolvedMeta = await skill.prepare(this.actor, skill.fieldMeta ?? {})
+        } finally {
+          this._preparing = false
+        }
+      }
+      this._resolvedFieldMeta = resolvedMeta
+
+      this._allFieldSpecs = buildFieldSpecs(skill.fieldSchema, skill.questions, resolvedMeta)
 
       // Store extracted fields.
       this._fields = { ...extractedFields }
@@ -173,7 +187,7 @@ export class ActionEngine {
       this._fields = { ...this._fields, ...fields }
 
       // Validate.
-      const result = validateFields(skill.fieldSchema, this._fields, skill.questions, skill.fieldMeta)
+      const result = validateFields(skill.fieldSchema, this._fields, skill.questions, this._resolvedFieldMeta)
 
       if (result.valid) {
         this._errors = {}
@@ -221,7 +235,7 @@ export class ActionEngine {
       this._fields = { ...this._fields, ...extraction.extracted }
 
       // Validate.
-      const result = validateFields(skill.fieldSchema, this._fields, skill.questions, skill.fieldMeta)
+      const result = validateFields(skill.fieldSchema, this._fields, skill.questions, this._resolvedFieldMeta)
 
       if (result.valid) {
         this._errors = {}
@@ -386,7 +400,7 @@ export class ActionEngine {
         const result = await this.router.classify(text)
         if (!result) return false
 
-        return this.selectSkill(result.skillId, result.extractedFields)
+        return await this.selectSkill(result.skillId, result.extractedFields)
       } catch {
         return false
       } finally {
@@ -428,7 +442,7 @@ export class ActionEngine {
     const skill = this.activeSkill
     if (!skill) return
 
-    const result = validateFields(skill.fieldSchema, this._fields, skill.questions, skill.fieldMeta)
+    const result = validateFields(skill.fieldSchema, this._fields, skill.questions, this._resolvedFieldMeta)
 
     if (result.valid) {
       this._errors = {}
@@ -449,6 +463,8 @@ export class ActionEngine {
     this._fields = {}
     this._errors = {}
     this._allFieldSpecs = []
+    this._resolvedFieldMeta = undefined
+    this._preparing = false
     this._pendingReset = false
   }
 

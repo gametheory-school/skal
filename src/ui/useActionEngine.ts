@@ -31,9 +31,10 @@ export interface UseActionEngineReturn {
   errors: EngineSnapshot['errors']
   allFieldSpecs: EngineSnapshot['allFieldSpecs']
   dispatching: EngineSnapshot['dispatching']
+  preparing: EngineSnapshot['preparing']
   activeAction: ActionCardProps
   routeInput: (text: string) => Promise<boolean>
-  selectSkill: (skillId: string, extractedFields?: Record<string, unknown>) => boolean
+  selectSkill: (skillId: string, extractedFields?: Record<string, unknown>) => Promise<boolean>
   submitFields: (fields: Record<string, unknown>) => boolean
   submitText: (text: string) => ReturnType<ActionEngine['submitText']>
   dispatch: () => Promise<HandlerResult>
@@ -132,6 +133,7 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
     errors: snapshot.errors,
     allFieldSpecs: snapshot.allFieldSpecs,
     dispatching: snapshot.dispatching,
+    preparing: snapshot.preparing,
     activeAction,
     routeInput,
     selectSkill,

@@ -62,21 +62,21 @@ describe('ActionEngine', () => {
   // ─── selectSkill ─────────────────────────────────────────────
 
   describe('selectSkill', () => {
-    it('enters clarifying when no extracted fields', () => {
+    it('enters clarifying when no extracted fields', async () => {
       const skill = makeSkill('journal.entry')
       const { engine } = setup([skill])
 
-      const result = engine.selectSkill('journal.entry')
+      const result = await engine.selectSkill('journal.entry')
 
       expect(result).toBe(true)
       expect(engine.state.kind).toBe('clarifying')
     })
 
-    it('enters validated when complete extracted fields', () => {
+    it('enters validated when complete extracted fields', async () => {
       const skill = makeSkill('journal.entry')
       const { engine } = setup([skill])
 
-      engine.selectSkill('journal.entry', {
+      await engine.selectSkill('journal.entry', {
         title: 'Test',
         content: 'Body',
       })
@@ -84,32 +84,32 @@ describe('ActionEngine', () => {
       expect(engine.state.kind).toBe('validated')
     })
 
-    it('enters clarifying with partial extracted fields', () => {
+    it('enters clarifying with partial extracted fields', async () => {
       const skill = makeSkill('journal.entry')
       const { engine } = setup([skill])
 
-      engine.selectSkill('journal.entry', { title: 'Test' })
+      await engine.selectSkill('journal.entry', { title: 'Test' })
 
       expect(engine.state.kind).toBe('clarifying')
       expect(engine.getSnapshot().fields.title).toBe('Test')
     })
 
-    it('returns false for unknown skill', () => {
+    it('returns false for unknown skill', async () => {
       const { engine } = setup([])
-      const result = engine.selectSkill('nonexistent')
+      const result = await engine.selectSkill('nonexistent')
       expect(result).toBe(false)
       expect(engine.state.kind).toBe('idle')
     })
 
-    it('resets first when already active', () => {
+    it('resets first when already active', async () => {
       const skillA = makeSkill('skill.a')
       const skillB = makeSkill('skill.b')
       const { engine } = setup([skillA, skillB])
 
-      engine.selectSkill('skill.a')
+      await engine.selectSkill('skill.a')
       expect(engine.state.kind).toBe('clarifying')
 
-      engine.selectSkill('skill.b')
+      await engine.selectSkill('skill.b')
       expect(engine.state.kind).toBe('clarifying')
       expect(engine.activeSkill?.id).toBe('skill.b')
     })
@@ -118,30 +118,30 @@ describe('ActionEngine', () => {
   // ─── submitFields ────────────────────────────────────────────
 
   describe('submitFields', () => {
-    it('transitions to validated with valid fields', () => {
+    it('transitions to validated with valid fields', async () => {
       const skill = makeSkill('journal.entry')
       const { engine } = setup([skill])
-      engine.selectSkill('journal.entry')
+      await engine.selectSkill('journal.entry')
 
       engine.submitFields({ title: 'Test', content: 'Body' })
 
       expect(engine.state.kind).toBe('validated')
     })
 
-    it('stays in clarifying with partial fields', () => {
+    it('stays in clarifying with partial fields', async () => {
       const skill = makeSkill('journal.entry')
       const { engine } = setup([skill])
-      engine.selectSkill('journal.entry')
+      await engine.selectSkill('journal.entry')
 
       engine.submitFields({ title: 'Test' })
 
       expect(engine.state.kind).toBe('clarifying')
     })
 
-    it('merges fields across multiple submissions', () => {
+    it('merges fields across multiple submissions', async () => {
       const skill = makeSkill('journal.entry')
       const { engine } = setup([skill])
-      engine.selectSkill('journal.entry')
+      await engine.selectSkill('journal.entry')
 
       engine.submitFields({ title: 'Test' })
       engine.submitFields({ content: 'Body' })
@@ -151,10 +151,10 @@ describe('ActionEngine', () => {
       expect(engine.getSnapshot().fields.content).toBe('Body')
     })
 
-    it('returns false from validated state (double-submit guard)', () => {
+    it('returns false from validated state (double-submit guard)', async () => {
       const skill = makeSkill('journal.entry')
       const { engine } = setup([skill])
-      engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
+      await engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
 
       const result = engine.submitFields({ title: 'Again' })
 
@@ -167,10 +167,10 @@ describe('ActionEngine', () => {
       expect(result).toBe(false)
     })
 
-    it('returns false when activeSkill is undefined (Bug fix #4)', () => {
+    it('returns false when activeSkill is undefined (Bug fix #4)', async () => {
       const skill = makeSkill('journal.entry')
       const { engine, registry } = setup([skill])
-      engine.selectSkill('journal.entry')
+      await engine.selectSkill('journal.entry')
 
       // Unregister the skill mid-flow.
       registry.unregister('journal.entry')
@@ -183,7 +183,7 @@ describe('ActionEngine', () => {
   // ─── submitText ──────────────────────────────────────────────
 
   describe('submitText', () => {
-    it('extracts and merges extractable fields', () => {
+    it('extracts and merges extractable fields', async () => {
       const skill = makeSkill('invite.send', {
         fieldSchema: z.object({
           email: z.string().email(),
@@ -196,17 +196,17 @@ describe('ActionEngine', () => {
         },
       })
       const { engine } = setup([skill])
-      engine.selectSkill('invite.send')
+      await engine.selectSkill('invite.send')
 
       engine.submitText('send to john@example.com')
 
       expect(engine.getSnapshot().fields.email).toBe('john@example.com')
     })
 
-    it('returns false when activeSkill is undefined (Bug fix #4)', () => {
+    it('returns false when activeSkill is undefined (Bug fix #4)', async () => {
       const skill = makeSkill('journal.entry')
       const { engine, registry } = setup([skill])
-      engine.selectSkill('journal.entry')
+      await engine.selectSkill('journal.entry')
       registry.unregister('journal.entry')
 
       const result = engine.submitText('some text')
@@ -222,7 +222,7 @@ describe('ActionEngine', () => {
         handler: async () => ({ type: 'instant', data: { id: '123' } }),
       })
       const { engine } = setup([skill])
-      engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
+      await engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
 
       const result = await engine.dispatch()
 
@@ -239,7 +239,7 @@ describe('ActionEngine', () => {
         }),
       })
       const { engine } = setup([skill])
-      engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
+      await engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
 
       const result = await engine.dispatch()
 
@@ -250,7 +250,7 @@ describe('ActionEngine', () => {
     it('returns error if not in validated state', async () => {
       const skill = makeSkill('journal.entry')
       const { engine } = setup([skill])
-      engine.selectSkill('journal.entry')
+      await engine.selectSkill('journal.entry')
 
       const result = await engine.dispatch()
 
@@ -266,7 +266,7 @@ describe('ActionEngine', () => {
           }),
       })
       const { engine } = setup([skill])
-      engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
+      await engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
 
       const first = engine.dispatch()
       const second = await engine.dispatch()
@@ -290,7 +290,7 @@ describe('ActionEngine', () => {
           }),
       })
       const { engine } = setup([skill])
-      engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
+      await engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
 
       const dispatchPromise = engine.dispatch()
       // Yield to let the handler's Promise constructor execute.
@@ -321,10 +321,10 @@ describe('ActionEngine', () => {
   // ─── reset ───────────────────────────────────────────────────
 
   describe('reset', () => {
-    it('returns to idle and clears state', () => {
+    it('returns to idle and clears state', async () => {
       const skill = makeSkill('journal.entry')
       const { engine } = setup([skill])
-      engine.selectSkill('journal.entry')
+      await engine.selectSkill('journal.entry')
 
       engine.reset()
 
@@ -343,7 +343,7 @@ describe('ActionEngine', () => {
           }),
       })
       const { engine } = setup([skill])
-      engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
+      await engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
 
       const dispatchPromise = engine.dispatch()
       // Yield to let the handler's Promise constructor execute.
@@ -398,7 +398,7 @@ describe('ActionEngine', () => {
   // ─── activeAction ────────────────────────────────────────────
 
   describe('activeAction', () => {
-    it('returns correct props shape', () => {
+    it('returns correct props shape', async () => {
       const skill = makeSkill('journal.entry', {
         fieldSchema: z.object({
           title: z.string(),
@@ -407,7 +407,7 @@ describe('ActionEngine', () => {
         questions: { title: 'Title?', tags: 'Tags?' },
       })
       const { engine } = setup([skill])
-      engine.selectSkill('journal.entry')
+      await engine.selectSkill('journal.entry')
 
       const props = engine.activeAction
 
@@ -427,25 +427,25 @@ describe('ActionEngine', () => {
   // ─── subscription ────────────────────────────────────────────
 
   describe('subscription', () => {
-    it('notifies listeners on state change', () => {
+    it('notifies listeners on state change', async () => {
       const skill = makeSkill('journal.entry')
       const { engine } = setup([skill])
       const listener = vi.fn()
 
       engine.subscribe(listener)
-      engine.selectSkill('journal.entry')
+      await engine.selectSkill('journal.entry')
 
       expect(listener).toHaveBeenCalled()
     })
 
-    it('unsubscribes correctly', () => {
+    it('unsubscribes correctly', async () => {
       const skill = makeSkill('journal.entry')
       const { engine } = setup([skill])
       const listener = vi.fn()
 
       const unsub = engine.subscribe(listener)
       unsub()
-      engine.selectSkill('journal.entry')
+      await engine.selectSkill('journal.entry')
 
       expect(listener).not.toHaveBeenCalled()
     })
@@ -499,6 +499,116 @@ describe('ActionEngine', () => {
 
       // Submit the remaining field.
       engine.submitFields({ name: 'John' })
+      expect(engine.state.kind).toBe('validated')
+    })
+  })
+
+  // ─── prepare lifecycle hook ──────────────────────────────────
+
+  describe('prepare', () => {
+    it('calls prepare and uses resolved fieldMeta', async () => {
+      const prepareFn = vi.fn().mockResolvedValue({
+        title: { inputType: 'text', label: 'Title' },
+        template_id: {
+          inputType: 'choice',
+          label: 'Template',
+          options: [
+            { value: 't1', label: 'Template 1' },
+            { value: 't2', label: 'Template 2' },
+          ],
+        },
+      })
+
+      const skill = makeSkill('journal.entry', {
+        fieldSchema: z.object({
+          title: z.string(),
+          template_id: z.string(),
+        }),
+        questions: { title: 'Title?', template_id: 'Template?' },
+        fieldMeta: {
+          title: { inputType: 'text', label: 'Title' },
+          template_id: { inputType: 'choice', label: 'Template' },
+        },
+        prepare: prepareFn,
+      })
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('journal.entry')
+
+      // prepare should have been called with actor and static fieldMeta.
+      expect(prepareFn).toHaveBeenCalledWith(
+        actor,
+        skill.fieldMeta,
+      )
+
+      // The resolved fieldMeta should be used for field specs.
+      const specs = engine.getSnapshot().allFieldSpecs
+      const templateSpec = specs.find((s) => s.key === 'template_id')
+      expect(templateSpec?.inputType).toBe('choice')
+      expect(templateSpec?.options).toHaveLength(2)
+      expect(templateSpec?.options?.[0].value).toBe('t1')
+    })
+
+    it('transitions to failed state when prepare throws', async () => {
+      const skill = makeSkill('journal.entry', {
+        prepare: async () => {
+          throw new Error('API fetch failed')
+        },
+      })
+      const { engine } = setup([skill])
+
+      const result = await engine.selectSkill('journal.entry')
+
+      // Should return false and reset to idle.
+      expect(result).toBe(false)
+      expect(engine.state.kind).toBe('idle')
+    })
+
+    it('skips prepare if not defined', async () => {
+      const skill = makeSkill('journal.entry', {
+        fieldSchema: z.object({
+          title: z.string(),
+        }),
+        questions: { title: 'Title?' },
+        fieldMeta: {
+          title: { inputType: 'text', label: 'Title' },
+        },
+      })
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('journal.entry')
+
+      // Should work normally without prepare.
+      expect(engine.state.kind).toBe('clarifying')
+      const specs = engine.getSnapshot().allFieldSpecs
+      expect(specs).toHaveLength(1)
+    })
+
+    it('uses resolved fieldMeta in validation', async () => {
+      const skill = makeSkill('journal.entry', {
+        fieldSchema: z.object({
+          title: z.string(),
+          category: z.string(),
+        }),
+        questions: { title: 'Title?', category: 'Category?' },
+        fieldMeta: {
+          title: { inputType: 'text', label: 'Title' },
+          category: { inputType: 'choice', label: 'Category' },
+        },
+        prepare: async (_actor, meta) => ({
+          ...meta,
+          category: {
+            ...meta.category,
+            options: [{ value: 'work', label: 'Work' }],
+          },
+        }),
+      })
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('journal.entry')
+
+      // Submit with a valid category value.
+      engine.submitFields({ title: 'Test', category: 'work' })
       expect(engine.state.kind).toBe('validated')
     })
   })

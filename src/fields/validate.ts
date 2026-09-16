@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import type { FieldSpec, InputType } from '../engine/types.js'
+import type { FieldSpec, FieldMetaInput } from '../engine/types.js'
 
 /**
  * Validate fields against a Zod schema and produce FieldSpecs
@@ -25,7 +25,7 @@ export function validateFields(
   schema: z.ZodSchema,
   fields: Record<string, unknown>,
   questions: Record<string, string>,
-  fieldMeta?: Record<string, { inputType: InputType; label: string; multiline?: boolean; options?: Array<{ value: string; label: string }> }>,
+  fieldMeta?: Record<string, FieldMetaInput>,
 ): ValidationResult {
   const result = schema.safeParse(fields)
 
@@ -71,7 +71,7 @@ export function validateFields(
 export function buildFieldSpecs(
   schema: z.ZodSchema,
   questions: Record<string, string>,
-  fieldMeta?: Record<string, { inputType: InputType; label: string; multiline?: boolean; options?: Array<{ value: string; label: string }> }>,
+  fieldMeta?: Record<string, FieldMetaInput>,
 ): FieldSpec[] {
   // Zod schemas expose their shape via _def for object schemas.
   // We use a safe introspection approach.

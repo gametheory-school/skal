@@ -3,6 +3,28 @@
 All notable changes to `@gametheory-school/skal` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com); versioning follows [semver](https://semver.org).
 
+## [0.3.0] — 2026-09-16
+
+### Added
+
+- **`prepare` lifecycle hook** on `SkillDefinition`: optional async pre-flight hook `(actor, fieldMeta) => Promise<Record<string, FieldMetaInput>>`. Runs after skill selection, before the clarify loop renders. Enables skills to fetch dynamic data (e.g., dropdown options from APIs) and merge into fieldMeta. If `prepare` throws, engine resets to idle (same error handling as other public methods).
+- **`FieldMetaInput` interface** extracted as a named type for reuse: `{ inputType, label, multiline?, options? }`. Exported from both entry points.
+- **`preparing: boolean`** flag on `EngineSnapshot` for UI loading states while `prepare` runs.
+- **4 new tests** covering `prepare` hook: populates choice options, rejection transitions to idle, skips when not defined, resolved fieldMeta flows through validation.
+
+### Changed
+
+- **`ActionEngine.selectSkill()`** is now `async` and returns `Promise<boolean>` instead of `boolean`. Calls `skill.prepare()` if defined before entering the clarify loop. Resolved fieldMeta stored internally and used for all subsequent `buildFieldSpecs` and `validateFields` calls.
+- **`useActionEngine` hook** return type updated: `selectSkill` signature changed to `Promise<boolean>`, added `preparing: boolean` to return type.
+- **`validateFields` and `buildFieldSpecs`** parameter types updated to use `FieldMetaInput` instead of inline type definition (non-breaking, same shape).
+
+### Consumer impact
+
+- Skills can now define a `prepare` hook to fetch dynamic field options (e.g., dropdown choices from an API) before the clarify loop renders. This eliminates the need for consumers to fetch data in the shell and mutate skill definitions.
+- `selectSkill` is now async — consumers must `await` it. This is a breaking change for any code calling `selectSkill` synchronously, but the migration is straightforward: add `await`.
+- The `preparing` flag in the snapshot allows UI to show loading indicators while `prepare` runs.
+- Existing skills without `prepare` work unchanged — the hook is optional and backward compatible.
+
 ## [0.2.0] — 2026-09-16
 
 ### Added

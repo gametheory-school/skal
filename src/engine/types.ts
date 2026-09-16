@@ -4,6 +4,13 @@ import { z } from 'zod'
 
 export type InputType = 'text' | 'email' | 'datetime' | 'contact' | 'choice'
 
+export interface FieldMetaInput {
+  inputType: InputType
+  label: string
+  multiline?: boolean
+  options?: Array<{ value: string; label: string }>
+}
+
 export interface FieldSpec {
   key: string
   label: string
@@ -27,7 +34,16 @@ export interface SkillDefinition {
   /** Field key → question text. */
   questions: Record<string, string>
   /** Optional field metadata (inputType, label, etc.) for FieldSpec generation. */
-  fieldMeta?: Record<string, { inputType: InputType; label: string; multiline?: boolean; options?: Array<{ value: string; label: string }> }>
+  fieldMeta?: Record<string, FieldMetaInput>
+  /**
+   * Optional pre-flight hook. Runs after skill selection, before the
+   * clarify loop renders. Use it to fetch dynamic data (e.g. dropdown
+   * options from an API) and merge into fieldMeta.
+   */
+  prepare?: (
+    actor: ActorContext,
+    fieldMeta: Record<string, FieldMetaInput>,
+  ) => Promise<Record<string, FieldMetaInput>>
   /** Checked via PermissionGate. */
   requiredRole?: string
   platformOnly?: boolean
