@@ -55,6 +55,7 @@ export function ActionCard(props: ActionCardProps) {
       setLocalFields({ ...props.currentFields })
       setShowOptional(false)
       setMode('form')
+      setSubmitted(false)
       savedTextRef.current = ''
     }
   }, [skill?.id, props.currentFields])
@@ -63,6 +64,8 @@ export function ActionCard(props: ActionCardProps) {
   const savedTextRef = useRef('')
   const [mode, setMode] = useState<'form' | 'text'>('form')
   const [showOptional, setShowOptional] = useState(false)
+  // Issue 2: gate error display on first submit attempt.
+  const [submitted, setSubmitted] = useState(false)
 
   // ─── idle ──────────────────────────────────────────────────
 
@@ -71,11 +74,20 @@ export function ActionCard(props: ActionCardProps) {
   // ─── capturing / clarifying ────────────────────────────────
 
   if (state.kind === 'capturing' || state.kind === 'clarifying') {
+    // Separate auto-resolved fields from interactive fields.
+    const interactiveRequired = props.requiredFields.filter((f) => !f.autoResolved)
+    const autoResolvedRequired = props.requiredFields.filter((f) => f.autoResolved)
+    const interactiveOptional = props.optionalFields.filter((f) => !f.autoResolved)
+    const autoResolvedOptional = props.optionalFields.filter((f) => f.autoResolved)
+    const autoResolvedFields = [...autoResolvedRequired, ...autoResolvedOptional]
+
     const handleSubmit = () => {
+      setSubmitted(true)
       props.onSubmit(localFields)
     }
 
     const handleSubmitText = (text: string) => {
+      setSubmitted(true)
       savedTextRef.current = ''
       props.onSubmitText(text)
     }
@@ -113,8 +125,25 @@ export function ActionCard(props: ActionCardProps) {
 
         {mode === 'form' ? (
           <>
+            {/* Auto-resolved fields: read-only confirmation */}
+            {autoResolvedFields.length > 0 && (
+              <div className="mb-3 rounded bg-blue-50 px-3 py-2">
+                {autoResolvedFields.map((field) => {
+                  const optionLabel = field.options?.find(
+                    (o) => o.value === (localFields[field.key] ?? field.currentValue),
+                  )?.label
+                  return (
+                    <div key={field.key} className="flex text-xs">
+                      <span className="font-medium text-blue-700">{field.label}:</span>
+                      <span className="ml-1 text-blue-600">{optionLabel ?? '—'}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
             {/* Required fields */}
-            {props.requiredFields.map((field) => (
+            {interactiveRequired.map((field) => (
               <FieldRenderer
                 key={field.key}
                 field={field}
@@ -122,13 +151,13 @@ export function ActionCard(props: ActionCardProps) {
                 onChange={(v) =>
                   setLocalFields((prev) => ({ ...prev, [field.key]: v }))
                 }
-                error={props.errors[field.key]}
+                error={submitted ? props.errors[field.key] : undefined}
                 question={props.questions[field.key]}
               />
             ))}
 
             {/* Optional fields */}
-            {props.optionalFields.length > 0 && (
+            {interactiveOptional.length > 0 && (
               <>
                 <button
                   onClick={() => setShowOptional(!showOptional)}
@@ -137,7 +166,7 @@ export function ActionCard(props: ActionCardProps) {
                   {showOptional ? 'Hide options' : 'More options'}
                 </button>
                 {showOptional &&
-                  props.optionalFields.map((field) => (
+                  interactiveOptional.map((field) => (
                     <FieldRenderer
                       key={field.key}
                       field={field}
@@ -148,7 +177,7 @@ export function ActionCard(props: ActionCardProps) {
                           [field.key]: v,
                         }))
                       }
-                      error={props.errors[field.key]}
+                      error={submitted ? props.errors[field.key] : undefined}
                       question={props.questions[field.key]}
                     />
                   ))}
@@ -250,7 +279,7 @@ export function ActionCard(props: ActionCardProps) {
   if (state.kind === 'completed') {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <CompletedState result={state.result} onReset={props.onReset} />
+        <CompletedState result={state.result} message={state.message} onReset={props.onReset} />
       </div>
     )
   }

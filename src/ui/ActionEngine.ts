@@ -74,6 +74,7 @@ export class ActionEngine {
   private _pendingReset = false
   private _routeQueue: Promise<unknown> = Promise.resolve()
   private _resolvedFieldMeta: Record<string, FieldMetaInput> | undefined = undefined
+  private _fieldErrors: Record<string, string> = {}
 
   private listeners = new Set<Listener>()
 
@@ -109,7 +110,7 @@ export class ActionEngine {
       state: this._state,
       skill: this.activeSkill,
       fields: this._fields,
-      errors: this._errors,
+      errors: this._mergedErrors,
       allFieldSpecs: this._allFieldSpecs,
       dispatching: this._dispatching,
       preparing: this._preparing,
@@ -150,8 +151,22 @@ export class ActionEngine {
 
       this._allFieldSpecs = buildFieldSpecs(skill.fieldSchema, skill.questions, resolvedMeta)
 
+      // Auto-resolve single-option choice fields.
+      this._fieldErrors = {}
+      for (const spec of this._allFieldSpecs) {
+        if (spec.inputType === 'choice' && spec.required) {
+          const options = resolvedMeta?.[spec.key]?.options
+          if (options?.length === 1 && (extractedFields?.[spec.key] ?? undefined) === undefined) {
+            this._fields[spec.key] = options[0].value
+            spec.autoResolved = true
+          } else if (options?.length === 0) {
+            this._fieldErrors[spec.key] = 'No options available'
+          }
+        }
+      }
+
       // Store extracted fields.
-      this._fields = { ...extractedFields }
+      this._fields = { ...this._fields, ...extractedFields }
 
       // Send SKILL_SELECTED to SM.
       this.sm.send({ type: 'SKILL_SELECTED', skillId, extractedFields })
@@ -426,7 +441,7 @@ export class ActionEngine {
       requiredFields,
       optionalFields,
       questions: skill?.questions ?? {},
-      errors: this._errors,
+      errors: this._mergedErrors,
       currentFields: this._fields,
       onSubmit: (fields) => this.submitFields(fields),
       onSubmitText: (text) => this.submitText(text),
@@ -462,10 +477,15 @@ export class ActionEngine {
     this._activeSkillId = null
     this._fields = {}
     this._errors = {}
+    this._fieldErrors = {}
     this._allFieldSpecs = []
     this._resolvedFieldMeta = undefined
     this._preparing = false
     this._pendingReset = false
+  }
+
+  private get _mergedErrors(): Record<string, string> {
+    return { ...this._errors, ...this._fieldErrors }
   }
 
   private notify(): void {

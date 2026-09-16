@@ -612,4 +612,205 @@ describe('ActionEngine', () => {
       expect(engine.state.kind).toBe('validated')
     })
   })
+
+  // ─── Issue 1: HandlerResult message ────────────────────────────
+
+  describe('handler result message', () => {
+    it('carries message into completed state', async () => {
+      const skill = makeSkill('journal.entry', {
+        handler: async () => ({
+          type: 'instant',
+          data: { id: '123' },
+          message: 'Entry saved successfully',
+        }),
+      })
+      const { engine } = setup([skill])
+      await engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
+
+      await engine.dispatch()
+
+      expect(engine.state.kind).toBe('completed')
+      if (engine.state.kind === 'completed') {
+        expect(engine.state.message).toBe('Entry saved successfully')
+        expect(engine.state.result).toEqual({ id: '123' })
+      }
+    })
+
+    it('completed state has undefined message when not provided', async () => {
+      const skill = makeSkill('journal.entry', {
+        handler: async () => ({
+          type: 'instant',
+          data: { id: '123' },
+        }),
+      })
+      const { engine } = setup([skill])
+      await engine.selectSkill('journal.entry', { title: 'T', content: 'C' })
+
+      await engine.dispatch()
+
+      expect(engine.state.kind).toBe('completed')
+      if (engine.state.kind === 'completed') {
+        expect(engine.state.message).toBeUndefined()
+      }
+    })
+  })
+
+  // ─── Issue 3: Auto-resolve single-option choice fields ─────────
+
+  describe('auto-resolve choice fields', () => {
+    it('auto-fills choice field with exactly 1 option', async () => {
+      const skill = makeSkill('journal.entry', {
+        fieldSchema: z.object({
+          entry_text: z.string(),
+          template_id: z.string(),
+        }),
+        questions: { entry_text: 'Entry?', template_id: 'Template?' },
+        fieldMeta: {
+          entry_text: { inputType: 'text', label: 'Entry' },
+          template_id: { inputType: 'choice', label: 'Template' },
+        },
+        prepare: async (_actor, meta) => ({
+          ...meta,
+          template_id: {
+            ...meta.template_id,
+            options: [{ value: 't1', label: 'Decision Journal' }],
+          },
+        }),
+      })
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('journal.entry')
+
+      // template_id should be auto-resolved.
+      expect(engine.getSnapshot().fields.template_id).toBe('t1')
+      // entry_text should still need user input.
+      expect(engine.state.kind).toBe('clarifying')
+      // The spec should be marked autoResolved.
+      const specs = engine.getSnapshot().allFieldSpecs
+      const templateSpec = specs.find((s) => s.key === 'template_id')
+      expect(templateSpec?.autoResolved).toBe(true)
+    })
+
+    it('extracted value takes precedence over auto-resolve', async () => {
+      const skill = makeSkill('journal.entry', {
+        fieldSchema: z.object({
+          entry_text: z.string(),
+          template_id: z.string(),
+        }),
+        questions: { entry_text: 'Entry?', template_id: 'Template?' },
+        fieldMeta: {
+          entry_text: { inputType: 'text', label: 'Entry' },
+          template_id: { inputType: 'choice', label: 'Template' },
+        },
+        prepare: async (_actor, meta) => ({
+          ...meta,
+          template_id: {
+            ...meta.template_id,
+            options: [{ value: 't1', label: 'Decision Journal' }],
+          },
+        }),
+      })
+      const { engine } = setup([skill])
+
+      // Pass an extracted value for template_id.
+      await engine.selectSkill('journal.entry', { template_id: 't2' })
+
+      // The extracted value should win.
+      expect(engine.getSnapshot().fields.template_id).toBe('t2')
+      // The spec should NOT be marked autoResolved.
+      const specs = engine.getSnapshot().allFieldSpecs
+      const templateSpec = specs.find((s) => s.key === 'template_id')
+      expect(templateSpec?.autoResolved).toBeUndefined()
+    })
+
+    it('does not auto-resolve multi-option fields', async () => {
+      const skill = makeSkill('journal.entry', {
+        fieldSchema: z.object({
+          entry_text: z.string(),
+          template_id: z.string(),
+        }),
+        questions: { entry_text: 'Entry?', template_id: 'Template?' },
+        fieldMeta: {
+          entry_text: { inputType: 'text', label: 'Entry' },
+          template_id: { inputType: 'choice', label: 'Template' },
+        },
+        prepare: async (_actor, meta) => ({
+          ...meta,
+          template_id: {
+            ...meta.template_id,
+            options: [
+              { value: 't1', label: 'Template 1' },
+              { value: 't2', label: 'Template 2' },
+            ],
+          },
+        }),
+      })
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('journal.entry')
+
+      // template_id should NOT be auto-resolved (2 options).
+      expect(engine.getSnapshot().fields.template_id).toBeUndefined()
+      const specs = engine.getSnapshot().allFieldSpecs
+      const templateSpec = specs.find((s) => s.key === 'template_id')
+      expect(templateSpec?.autoResolved).toBeUndefined()
+    })
+
+    it('surfaces error for zero-option required choice field', async () => {
+      const skill = makeSkill('journal.entry', {
+        fieldSchema: z.object({
+          entry_text: z.string(),
+          template_id: z.string(),
+        }),
+        questions: { entry_text: 'Entry?', template_id: 'Template?' },
+        fieldMeta: {
+          entry_text: { inputType: 'text', label: 'Entry' },
+          template_id: { inputType: 'choice', label: 'Template' },
+        },
+        prepare: async (_actor, meta) => ({
+          ...meta,
+          template_id: {
+            ...meta.template_id,
+            options: [],  // zero options
+          },
+        }),
+      })
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('journal.entry')
+
+      // Should have a field error for template_id.
+      expect(engine.getSnapshot().errors.template_id).toBe('No options available')
+    })
+
+    it('auto-resolved + user fields can validate together', async () => {
+      const skill = makeSkill('journal.entry', {
+        fieldSchema: z.object({
+          entry_text: z.string(),
+          template_id: z.string(),
+        }),
+        questions: { entry_text: 'Entry?', template_id: 'Template?' },
+        fieldMeta: {
+          entry_text: { inputType: 'text', label: 'Entry' },
+          template_id: { inputType: 'choice', label: 'Template' },
+        },
+        prepare: async (_actor, meta) => ({
+          ...meta,
+          template_id: {
+            ...meta.template_id,
+            options: [{ value: 't1', label: 'Decision Journal' }],
+          },
+        }),
+        handler: async () => ({ type: 'instant', data: {} }),
+      })
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('journal.entry')
+      expect(engine.state.kind).toBe('clarifying')
+
+      // Only submit entry_text — template_id is auto-resolved.
+      engine.submitFields({ entry_text: 'Today I learned...' })
+      expect(engine.state.kind).toBe('validated')
+    })
+  })
 })

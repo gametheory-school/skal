@@ -3,6 +3,28 @@
 All notable changes to `@gametheory-school/skal` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com); versioning follows [semver](https://semver.org).
 
+## [0.4.0] — 2026-09-16
+
+### Added
+
+- **`message` on `HandlerResult` instant variant**: optional human-readable confirmation string. When present, `CompletedState` renders it as a text paragraph instead of a raw JSON dump. Carried through to `ActionState` completed variant.
+- **`autoResolved` flag on `FieldSpec`**: set by the engine when a single-option choice field is auto-filled. ActionCard renders auto-resolved fields as read-only blue confirmation lines.
+- **`SkalVersion` component** (`src/ui/SkalVersion.tsx`): build-time version label injected via tsup `define` from package.json. Renders `skal <version>` — same visual rhythm as axon's `powered by axon <version>`. Exported from `@gametheory-school/skal/ui`.
+- **8 new tests** (122 total): handler message carried to completed state, auto-resolve with 1 option, extracted value precedence, multi-option unaffected, zero-option error, auto-resolve + validation integration, SM message passthrough.
+
+### Fixed
+
+- **Pristine form errors**: validation errors no longer render on the clarify card before the user has submitted. Errors gated on first submit attempt via component-local `submitted` state. Resets on skill change.
+- **Single-option choice auto-resolve**: choice fields with exactly 1 option are auto-filled in `selectSkill()` — the question is skipped entirely. Zero-option required choice fields surface "No options available" error. Data-driven: when options change (via `prepare`), behavior updates automatically.
+
+### Consumer impact
+
+- Handlers can return `message` for user-friendly confirmations instead of raw JSON. Existing handlers without `message` work unchanged (JSON dump remains the default).
+- Pristine forms no longer show red errors on first render — standard form UX.
+- Skills with dynamic single-option dropdowns (e.g., only one journal template) auto-resolve without asking. When more options appear later, the dropdown returns automatically.
+- `SkalVersion` gives consumers a one-line version label for their shell chrome.
+- All changes are backward-compatible — no breaking API changes.
+
 ## [0.3.0] — 2026-09-16
 
 ### Added

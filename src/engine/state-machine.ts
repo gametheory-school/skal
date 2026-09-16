@@ -184,7 +184,7 @@ export class StateMachine {
 function resolveHandlerResult(result: HandlerResult): ActionState {
   switch (result.type) {
     case 'instant':
-      return { kind: 'completed', result: result.data }
+      return { kind: 'completed', result: result.data, message: result.message }
     case 'long-running':
       return { kind: 'running', executionId: result.executionId }
     case 'error':

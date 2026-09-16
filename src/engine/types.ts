@@ -21,6 +21,8 @@ export interface FieldSpec {
   currentValue?: unknown
   /** For inputType: 'choice'. */
   options?: Array<{ value: string; label: string }>
+  /** True when the engine auto-resolved a single-option choice field. */
+  autoResolved?: boolean
 }
 
 // ─── Skill Definition ─────────────────────────────────────────────
@@ -60,7 +62,7 @@ export type SkillHandler = (
 ) => Promise<HandlerResult>
 
 export type HandlerResult =
-  | { type: 'instant'; data: unknown }
+  | { type: 'instant'; data: unknown; message?: string }
   | { type: 'long-running'; executionId: string; estimatedDuration?: number }
   | { type: 'error'; message: string; retryable: boolean }
 
@@ -105,7 +107,7 @@ export type ActionState =
       progress?: number
       eta?: number
     }
-  | { kind: 'completed'; result: unknown }
+  | { kind: 'completed'; result: unknown; message?: string }
   | { kind: 'failed'; error: string; retryable: boolean }
   | { kind: 'cancelled'; executionId: string; partialEffects?: string }
 

@@ -1,6 +1,6 @@
 {
   "name": "@gametheory-school/skal",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "gameTheory conversational UI framework — clarify-then-execute engine, action cards, skill definitions",
   "repository": {
     "type": "git",

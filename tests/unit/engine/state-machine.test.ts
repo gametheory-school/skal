@@ -135,6 +135,22 @@ describe('StateMachine', () => {
     expect(state).toEqual({ kind: 'completed', result: { id: '123' } })
   })
 
+  it('carries message from instant result into completed state', () => {
+    const sm = new StateMachine()
+    sm.send({ type: 'SKILL_SELECTED', skillId: 'test.skill' })
+    sm.send({ type: 'VALIDATED', fields: { title: 'Hello' } })
+    sm.send({ type: 'DISPATCH' })
+    const state = sm.send({
+      type: 'HANDLER_RESULT',
+      result: { type: 'instant', data: { id: '123' }, message: 'Saved!' },
+    })
+    expect(state.kind).toBe('completed')
+    if (state.kind === 'completed') {
+      expect(state.result).toEqual({ id: '123' })
+      expect(state.message).toBe('Saved!')
+    }
+  })
+
   it('transitions executing → running on long-running result', () => {
     const sm = new StateMachine()
     sm.send({ type: 'SKILL_SELECTED', skillId: 'test.skill' })

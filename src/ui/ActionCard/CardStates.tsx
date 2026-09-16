@@ -55,10 +55,11 @@ export function RunningState({ progress, eta, cancellable, onCancel }: RunningSt
 
 export interface CompletedStateProps {
   result: unknown
+  message?: string
   onReset: () => void
 }
 
-export function CompletedState({ result, onReset }: CompletedStateProps) {
+export function CompletedState({ result, message, onReset }: CompletedStateProps) {
   return (
     <div className="py-4">
       <div className="mb-2 flex items-center gap-2">
@@ -66,9 +67,13 @@ export function CompletedState({ result, onReset }: CompletedStateProps) {
           Done
         </span>
       </div>
-      <pre className="max-h-48 overflow-auto rounded bg-gray-50 p-3 text-xs text-gray-700">
-        {JSON.stringify(result, null, 2)}
-      </pre>
+      {message ? (
+        <p className="text-sm text-gray-700">{message}</p>
+      ) : (
+        <pre className="max-h-48 overflow-auto rounded bg-gray-50 p-3 text-xs text-gray-700">
+          {JSON.stringify(result, null, 2)}
+        </pre>
+      )}
       <button
         onClick={onReset}
         className="mt-3 w-full rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"

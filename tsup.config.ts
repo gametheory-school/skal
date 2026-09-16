@@ -1,4 +1,10 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'tsup'
+
+// Single source of truth for the in-product "powered by skal <version>" label.
+const { version } = JSON.parse(readFileSync('./package.json', 'utf8')) as {
+  version: string
+}
 
 export default defineConfig([
   // Engine/shared code — no 'use client' directive
@@ -15,6 +21,9 @@ export default defineConfig([
     dts: true,
     clean: false,
     banner: { js: "'use client'" },
+    define: {
+      'process.env.SKAL_VERSION': JSON.stringify(version),
+    },
     external: [
       'react',
       'react-dom',

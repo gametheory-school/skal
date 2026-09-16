@@ -2,9 +2,9 @@ import { z } from 'zod'
 import type { SkillDefinition, ActorContext, HandlerResult, FieldMetaInput } from '../src/engine/types.js'
 
 const journalEntrySchema = z.object({
-  title: z.string().min(1).max(200),
-  content: z.string().min(1),
-  template_id: z.string().optional(),
+  title: z.string('Title is required').min(1, 'Title is required').max(200),
+  content: z.string('Entry text is required').min(1, 'Entry text is required'),
+  template_id: z.string('Template is required').min(1, 'Template is required').optional(),
   tags: z.array(z.string()).optional(),
 })
 
@@ -53,6 +53,10 @@ export const journalEntrySkill: SkillDefinition = {
   handler: async (fields, context): Promise<HandlerResult> => {
     // Consumer provides the actual implementation.
     // This stub validates the contract shape.
-    return { type: 'instant', data: { id: crypto.randomUUID(), ...fields } }
+    return {
+      type: 'instant',
+      data: { id: crypto.randomUUID(), ...fields },
+      message: `Journal entry "${fields.title}" saved successfully.`,
+    }
   },
 }
