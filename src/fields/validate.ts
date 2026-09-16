@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import type { FieldSpec, FieldMetaInput } from '../engine/types.js'
+import type { FieldSpec, FieldMetaInput, InputType } from '../engine/types.js'
 
 /**
  * Validate fields against a Zod schema and produce FieldSpecs
@@ -15,6 +15,18 @@ export interface ValidationResult {
   data?: Record<string, unknown>
   /** Field-level error messages. */
   errors: Record<string, string>
+}
+
+/**
+ * A choice field with no options cannot render a dropdown — fall back
+ * to free text so the field stays fillable instead of dead-ending.
+ */
+function specInputType(meta: FieldMetaInput | undefined): InputType {
+  if (!meta) return 'text'
+  if (meta.inputType === 'choice' && (meta.options?.length ?? 0) === 0) {
+    return 'text'
+  }
+  return meta.inputType
 }
 
 /**
@@ -53,7 +65,7 @@ export function validateFields(
     missingFields.push({
       key: path,
       label: meta?.label ?? path,
-      inputType: meta?.inputType ?? 'text',
+      inputType: specInputType(meta),
       required: fields[path] === undefined,
       multiline: meta?.multiline,
       options: meta?.options,
@@ -86,7 +98,7 @@ export function buildFieldSpecs(
     specs.push({
       key,
       label: meta?.label ?? key,
-      inputType: meta?.inputType ?? 'text',
+      inputType: specInputType(meta),
       required: !isOptional,
       multiline: meta?.multiline,
       options: meta?.options,

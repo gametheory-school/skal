@@ -121,6 +121,7 @@ export type ScheduleTrigger =
 
 export type ActionEvent =
   | { type: 'SKILL_SELECTED'; skillId: string; extractedFields?: Record<string, unknown> }
+  | { type: 'SELECTION_DENIED'; message: string }
   | { type: 'FIELDS_EXTRACTED'; fields: Record<string, unknown> }
   | { type: 'GAPS_DETECTED'; missingFields: FieldSpec[] }
   | { type: 'USER_REPLIED'; fields: Record<string, unknown> }

@@ -51,6 +51,16 @@ describe('validateFields', () => {
     expect(result.valid).toBe(false)
     expect(Object.keys(result.errors).length).toBeGreaterThan(0)
   })
+
+  it('downgrades missing zero-option choice fields to text', () => {
+    const choiceSchema = z.object({ template_id: z.string() })
+    const fieldMeta = {
+      template_id: { inputType: 'choice' as const, label: 'Template', options: [] },
+    }
+    const result = validateFields(choiceSchema, {}, { template_id: 'Which template?' }, fieldMeta)
+    expect(result.valid).toBe(false)
+    expect(result.missingFields[0].inputType).toBe('text')
+  })
 })
 
 describe('buildFieldSpecs', () => {
@@ -88,5 +98,25 @@ describe('buildFieldSpecs', () => {
   it('returns empty array for non-object schemas', () => {
     const specs = buildFieldSpecs(z.string(), questions)
     expect(specs).toEqual([])
+  })
+
+  it('downgrades zero-option choice fields to text inputType', () => {
+    const choiceSchema = z.object({ template_id: z.string() })
+    const specs = buildFieldSpecs(choiceSchema, { template_id: 'Which template?' }, {
+      template_id: { inputType: 'choice' as const, label: 'Template', options: [] },
+    })
+    expect(specs[0].inputType).toBe('text')
+  })
+
+  it('keeps choice fields with options as choice', () => {
+    const choiceSchema = z.object({ template_id: z.string() })
+    const specs = buildFieldSpecs(choiceSchema, { template_id: 'Which template?' }, {
+      template_id: {
+        inputType: 'choice' as const,
+        label: 'Template',
+        options: [{ value: 't1', label: 'Template 1' }],
+      },
+    })
+    expect(specs[0].inputType).toBe('choice')
   })
 })

@@ -31,6 +31,27 @@ describe('StateMachine', () => {
     })
   })
 
+  it('transitions idle → failed on SELECTION_DENIED', () => {
+    const sm = new StateMachine()
+    const state = sm.send({
+      type: 'SELECTION_DENIED',
+      message: 'Permission denied: u1 cannot execute "test.skill"',
+    })
+    expect(state).toEqual({
+      kind: 'failed',
+      error: 'Permission denied: u1 cannot execute "test.skill"',
+      retryable: false,
+    })
+  })
+
+  it('rejects SELECTION_DENIED outside idle', () => {
+    const sm = new StateMachine()
+    sm.send({ type: 'SKILL_SELECTED', skillId: 'test.skill' })
+    expect(() =>
+      sm.send({ type: 'SELECTION_DENIED', message: 'denied' }),
+    ).toThrow(/Invalid transition/)
+  })
+
   it('transitions capturing → clarifying on GAPS_DETECTED', () => {
     const sm = new StateMachine()
     sm.send({ type: 'SKILL_SELECTED', skillId: 'test.skill' })

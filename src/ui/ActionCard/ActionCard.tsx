@@ -32,6 +32,21 @@ export interface ActionCardProps {
   onReset: () => void
 }
 
+// ─── Helpers ───────────────────────────────────────────────────────
+
+/**
+ * Resolve a validated field value for display. Choice fields render
+ * the matching option's label instead of the raw stored value.
+ */
+export function formatFieldValue(
+  value: unknown,
+  options?: Array<{ value: string; label: string }>,
+): string {
+  const label = (v: unknown) =>
+    options?.find((o) => o.value === v)?.label ?? String(v ?? '')
+  return Array.isArray(value) ? value.map(label).join(', ') : label(value)
+}
+
 // ─── Component ─────────────────────────────────────────────────────
 
 /**
@@ -210,6 +225,12 @@ export function ActionCard(props: ActionCardProps) {
   // ─── validated ─────────────────────────────────────────────
 
   if (state.kind === 'validated') {
+    const specOptions = new Map(
+      [...props.requiredFields, ...props.optionalFields].map((spec) => [
+        spec.key,
+        spec.options,
+      ]),
+    )
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-4">
         <h3 className="mb-3 text-sm font-semibold text-gray-900">
@@ -227,9 +248,7 @@ export function ActionCard(props: ActionCardProps) {
                 {props.questions[key] ?? key}
               </dt>
               <dd className="text-gray-900">
-                {Array.isArray(value)
-                  ? value.join(', ')
-                  : String(value ?? '')}
+                {formatFieldValue(value, specOptions.get(key))}
               </dd>
             </div>
           ))}

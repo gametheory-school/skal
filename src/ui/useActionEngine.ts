@@ -35,6 +35,7 @@ export interface UseActionEngineReturn {
   activeAction: ActionCardProps
   routeInput: (text: string) => Promise<boolean>
   selectSkill: (skillId: string, extractedFields?: Record<string, unknown>) => Promise<boolean>
+  canSelect: (skillId: string) => Promise<boolean>
   submitFields: (fields: Record<string, unknown>) => boolean
   submitText: (text: string) => ReturnType<ActionEngine['submitText']>
   dispatch: () => Promise<HandlerResult>
@@ -77,6 +78,11 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
   const selectSkill = useCallback(
     (skillId: string, extractedFields?: Record<string, unknown>) =>
       engine.selectSkill(skillId, extractedFields),
+    [engine],
+  )
+
+  const canSelect = useCallback(
+    (skillId: string) => engine.canSelect(skillId),
     [engine],
   )
 
@@ -137,6 +143,7 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
     activeAction,
     routeInput,
     selectSkill,
+    canSelect,
     submitFields,
     submitText,
     dispatch,

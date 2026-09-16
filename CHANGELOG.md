@@ -3,6 +3,29 @@
 All notable changes to `@gametheory-school/skal` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com); versioning follows [semver](https://semver.org).
 
+## [0.5.0] — 2026-09-16
+
+### Added
+
+- **`SELECTION_DENIED` event** in the `ActionEvent` union: triggers an `idle → failed` transition with `retryable: false`. The card shows the denial message + Dismiss only (no Retry button).
+- **`canSelect(skillId): Promise<boolean>`** public pre-flight permission check on `ActionEngine` and `useActionEngine` hook. For command-palette filtering / route-time gating — does not transition state, safe in render paths. Returns false for unregistered skills.
+- **11 new tests** (144 total): state-machine SELECTION_DENIED transitions, selectSkill denial flow, prepare-not-called on denial, recovery after denial, routeInput-to-denied, canSelect true/false/unknown/no-state-transition.
+
+### Changed
+
+- **Zero-option choice fields downgrade to text input** at spec-build (`specInputType` in `src/fields/validate.ts`): choice fields with empty or undefined options render as text inputs instead of dead dropdowns. The v0.4.0 "No options available" error and the `_fieldErrors`/`_mergedErrors` machinery were removed from ActionEngine. A required zero-option field now surfaces its normal Zod missing-field error after submit (like any text field).
+
+### Fixed
+
+- **Validated card renders option labels, not raw values**: `formatFieldValue(value, options)` helper in ActionCard resolves choice field values to their option labels via the FieldSpec `options` already on requiredFields/optionalFields. Falls back to the raw value for non-choice fields or unmatched values. No new engine API — `_resolvedFieldMeta` stays private.
+- **Select-time permission gate wired**: `selectSkill()` now runs the compose-time check (the previously imported-but-never-called `checkAtCompose`) after its reset and before `prepare()`. A denied selection never fetches dynamic data or renders a card; lands in `failed` with the dispatcher-format message (`Permission denied: <userId> cannot execute "<skillId>"`); the denied skill stays on `activeSkill` for context. `routeInput` inherits the gate (funnels through `selectSkill`). Dispatcher re-check untouched as defense-in-depth.
+
+### Consumer impact
+
+- **§1 (labels)**: no action needed — validated cards now render human-readable option labels instead of raw UUIDs/codes. Existing skills work unchanged.
+- **§2.1 (gate)**: consumers can delete their `routeWithGate` wrappers and similar pre-flight gate logic. Use `canSelect(skillId)` for command-palette filtering / route-time checks. The select-time gate covers the rest (direct `selectSkill` calls and `routeInput`).
+- **§2.3 (zero-option)**: consumers can delete defensive `prepare` downgrades that convert failed fetches to `inputType: 'text'` — the engine now handles this automatically. Behavior change vs v0.4.0: zero-option choice fields render as text inputs instead of showing "No options available" error. Required zero-option fields now surface the standard Zod missing-field error after submit.
+
 ## [0.4.0] — 2026-09-16
 
 ### Added

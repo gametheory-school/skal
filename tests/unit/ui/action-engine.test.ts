@@ -115,6 +115,110 @@ describe('ActionEngine', () => {
     })
   })
 
+  // ─── permission gating ───────────────────────────────────────
+
+  describe('permission gating', () => {
+    it('enters failed state when selectSkill is denied', async () => {
+      const skill = makeSkill('journal.entry')
+      const { engine } = setup([skill], denyAll())
+
+      const result = await engine.selectSkill('journal.entry')
+
+      expect(result).toBe(false)
+      expect(engine.state.kind).toBe('failed')
+      if (engine.state.kind === 'failed') {
+        expect(engine.state.error).toBe(
+          'Permission denied: u1 cannot execute "journal.entry"',
+        )
+        expect(engine.state.retryable).toBe(false)
+      }
+      expect(engine.activeSkill?.id).toBe('journal.entry')
+    })
+
+    it('does not call prepare when denied', async () => {
+      const prepareFn = vi.fn()
+      const skill = makeSkill('journal.entry', { prepare: prepareFn })
+      const { engine } = setup([skill], denyAll())
+
+      await engine.selectSkill('journal.entry')
+
+      expect(prepareFn).not.toHaveBeenCalled()
+    })
+
+    it('can select a different skill after a denial', async () => {
+      const gate: PermissionGate = {
+        can: async (_actor, actionId) => actionId !== 'skill.a',
+      }
+      const skillA = makeSkill('skill.a')
+      const skillB = makeSkill('skill.b')
+      const { engine } = setup([skillA, skillB], gate)
+
+      await engine.selectSkill('skill.a')
+      expect(engine.state.kind).toBe('failed')
+
+      const result = await engine.selectSkill('skill.b')
+
+      expect(result).toBe(true)
+      expect(engine.state.kind).toBe('clarifying')
+    })
+
+    it('reset returns to idle after a denial', async () => {
+      const skill = makeSkill('journal.entry')
+      const { engine } = setup([skill], denyAll())
+
+      await engine.selectSkill('journal.entry')
+      engine.reset()
+
+      expect(engine.state.kind).toBe('idle')
+      expect(engine.activeSkill).toBeUndefined()
+    })
+
+    it('routeInput lands in failed when the routed skill is denied', async () => {
+      const skill = makeSkill('journal.entry', {
+        description: 'Create a new journal entry',
+      })
+      const { engine } = setup([skill], denyAll())
+
+      const result = await engine.routeInput('create a journal entry')
+
+      expect(result).toBe(false)
+      expect(engine.state.kind).toBe('failed')
+    })
+  })
+
+  // ─── canSelect ───────────────────────────────────────────────
+
+  describe('canSelect', () => {
+    it('returns true when the gate allows', async () => {
+      const skill = makeSkill('journal.entry')
+      const { engine } = setup([skill], allowAll())
+
+      expect(await engine.canSelect('journal.entry')).toBe(true)
+    })
+
+    it('returns false when the gate denies', async () => {
+      const skill = makeSkill('journal.entry')
+      const { engine } = setup([skill], denyAll())
+
+      expect(await engine.canSelect('journal.entry')).toBe(false)
+    })
+
+    it('returns false for unknown skill', async () => {
+      const { engine } = setup([], allowAll())
+
+      expect(await engine.canSelect('nonexistent')).toBe(false)
+    })
+
+    it('does not transition state', async () => {
+      const skill = makeSkill('journal.entry')
+      const { engine } = setup([skill], denyAll())
+
+      await engine.canSelect('journal.entry')
+
+      expect(engine.state.kind).toBe('idle')
+    })
+  })
+
   // ─── submitFields ────────────────────────────────────────────
 
   describe('submitFields', () => {
@@ -756,7 +860,7 @@ describe('ActionEngine', () => {
       expect(templateSpec?.autoResolved).toBeUndefined()
     })
 
-    it('surfaces error for zero-option required choice field', async () => {
+    it('downgrades zero-option required choice field to a text input', async () => {
       const skill = makeSkill('journal.entry', {
         fieldSchema: z.object({
           entry_text: z.string(),
@@ -779,8 +883,66 @@ describe('ActionEngine', () => {
 
       await engine.selectSkill('journal.entry')
 
-      // Should have a field error for template_id.
-      expect(engine.getSnapshot().errors.template_id).toBe('No options available')
+      // The spec downgrades to text — no dead dropdown, no dead-end error.
+      const specs = engine.getSnapshot().allFieldSpecs
+      const templateSpec = specs.find((s) => s.key === 'template_id')
+      expect(templateSpec?.inputType).toBe('text')
+      expect(engine.getSnapshot().errors.template_id).not.toBe('No options available')
+    })
+
+    it('downgrades choice field with undefined options to a text input', async () => {
+      const skill = makeSkill('journal.entry', {
+        fieldSchema: z.object({
+          entry_text: z.string(),
+          template_id: z.string(),
+        }),
+        questions: { entry_text: 'Entry?', template_id: 'Template?' },
+        // No prepare — template_id stays a choice with no options at all.
+        fieldMeta: {
+          entry_text: { inputType: 'text', label: 'Entry' },
+          template_id: { inputType: 'choice', label: 'Template' },
+        },
+      })
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('journal.entry')
+
+      const specs = engine.getSnapshot().allFieldSpecs
+      const templateSpec = specs.find((s) => s.key === 'template_id')
+      expect(templateSpec?.inputType).toBe('text')
+    })
+
+    it('keeps zero-option optional choice field optional', async () => {
+      const skill = makeSkill('journal.entry', {
+        fieldSchema: z.object({
+          entry_text: z.string(),
+          template_id: z.string().optional(),
+        }),
+        questions: { entry_text: 'Entry?', template_id: 'Template?' },
+        fieldMeta: {
+          entry_text: { inputType: 'text', label: 'Entry' },
+          template_id: { inputType: 'choice', label: 'Template' },
+        },
+        prepare: async (_actor, meta) => ({
+          ...meta,
+          template_id: {
+            ...meta.template_id,
+            options: [],
+          },
+        }),
+      })
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('journal.entry')
+
+      const specs = engine.getSnapshot().allFieldSpecs
+      const templateSpec = specs.find((s) => s.key === 'template_id')
+      expect(templateSpec?.inputType).toBe('text')
+      expect(templateSpec?.required).toBe(false)
+      // entry_text alone satisfies the schema — no forced input for template_id.
+      const result = engine.submitFields({ entry_text: 'hello' })
+      expect(result).toBe(true)
+      expect(engine.state.kind).toBe('validated')
     })
 
     it('auto-resolved + user fields can validate together', async () => {

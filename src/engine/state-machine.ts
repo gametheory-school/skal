@@ -11,6 +11,7 @@ import type {
  *
  * Transitions:
  *   idle → capturing           (skill selected, fields partially extracted)
+ *   idle → failed               (skill selected, compose-time permission denied)
  *   capturing → clarifying     (gaps detected, FieldSpecs for missing fields)
  *   clarifying → clarifying    (user replied, some gaps remain)
  *   clarifying → validated     (all required fields present and valid)
@@ -70,6 +71,9 @@ export class StateMachine {
             skillId: event.skillId,
             partialFields: event.extractedFields ?? {},
           }
+        }
+        if (event.type === 'SELECTION_DENIED') {
+          return { kind: 'failed', error: event.message, retryable: false }
         }
         break
 
