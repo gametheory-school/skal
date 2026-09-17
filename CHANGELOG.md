@@ -3,6 +3,30 @@
 All notable changes to `@gametheory-school/skal` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com); versioning follows [semver](https://semver.org).
 
+## [0.9.0] — 2026-09-17
+
+### Added
+
+- **Live field validation in ActionCard**: form fields now validate as the user interacts, before submit:
+  - Fields validate **on blur** (empty required fields, invalid emails/contacts).
+  - Fields already touched revalidate **on change, debounced 500ms** — errors surface after the user pauses typing, not on every keystroke.
+  - Errors clear **immediately on correction**, with no debounce.
+  - Inline errors render below the field with a red border on the invalid input.
+  - **Submit is disabled** while any live field error is showing.
+  - **Accessibility**: errors are linked to their inputs via `aria-describedby` and `aria-invalid`; error messages have stable `field-{key}-error` ids.
+- No errors appear on initial render — pristine required fields don't show "Required" until the user interacts.
+
+### Changed
+
+- Field error display now merges live validation errors with engine validation errors: live errors take precedence while typing; engine errors (from `props.errors`) display after a submit attempt, as before.
+
+### Consumer impact
+
+- **Non-breaking**: no prop or API changes. Behavior is automatic inside ActionCard.
+- Datetime fields are intentionally not live-validated (timezone context needed — validated server-side), and choice fields rely on the existing mismatch warning banner rather than `validateFieldValue`.
+- Consumers surfacing engine `errors` keep working; those errors now appear after a submit attempt instead of being the only error source.
+- New devDependencies (`jsdom`, `@testing-library/react`, `@testing-library/dom`) are test-only and do not affect consumers.
+
 ## [0.8.3] — 2026-09-17
 
 ### Added
