@@ -40,12 +40,16 @@ export class SkillRouter {
 
   constructor(
     private readonly registry: SkillRegistry,
-    private readonly actor: ActorContext,
+    private actor: ActorContext,
     private readonly llm?: ExtractionLLM,
     private readonly options?: RouterOptions,
   ) {
     this.threshold = options?.threshold ?? 0.27
     this.ambiguityGap = options?.ambiguityGap ?? 0.1
+  }
+
+  setActor(actor: ActorContext): void {
+    this.actor = actor
   }
 
   /**

@@ -50,6 +50,7 @@ export interface EngineSnapshot {
   dispatching: boolean
   preparing: boolean
   currentRoute: string | null
+  actor: ActorContext
 }
 
 // ─── Engine Config ─────────────────────────────────────────────────
@@ -99,7 +100,7 @@ export class ActionEngine {
   constructor(
     private readonly registry: SkillRegistry,
     private readonly permissionGate: PermissionGate,
-    private readonly actor: ActorContext,
+    private actor: ActorContext,
     private readonly llm?: ExtractionLLM,
     private readonly config?: ActionEngineConfig,
   ) {
@@ -135,6 +136,7 @@ export class ActionEngine {
       dispatching: this._dispatching,
       preparing: this._preparing,
       currentRoute: this._currentRoute,
+      actor: this.actor,
     }
   }
 
@@ -159,6 +161,17 @@ export class ActionEngine {
    */
   setPageContext(route: string): void {
     this._currentRoute = route
+    this.notify()
+  }
+
+  /**
+   * Swap the actor context. Resets engine to idle (clears active skill,
+   * partial fields). Route context is preserved — it's page state, not actor state.
+   */
+  setActor(newActor: ActorContext): void {
+    this.resetInternal()
+    this.actor = newActor
+    this.router?.setActor(newActor)
     this.notify()
   }
 

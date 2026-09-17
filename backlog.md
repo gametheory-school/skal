@@ -35,7 +35,7 @@ An item is **pullable** when: it's in "Ready to pull," all `depends on` items ar
 
 | Item | Tag | Why now |
 |------|-----|---------|
-| B1. Actor mutability — setActor() [Spike] | [Spike] | Deletes `key={mode}` hack in Crucible; clean reset-on-actor-change |
+| B5. Suggestion pills [Feature] | [Feature] | F3 done — pills can filter by page context; low-effort UX win for command bar |
 
 ### 2. Blocked
 
@@ -106,22 +106,6 @@ Core engine infrastructure, types, state machine primitives.
 ## Build
 
 Feature implementation. New capabilities the engine renders or orchestrates.
-
-### B1. Actor mutability — setActor() [Spike]
-
-**Open thread.** `ActionEngine`'s constructor takes `private readonly actor: ActorContext` — immutable for the engine's lifetime. When the actor changes (e.g. mode switch in Crucible), consumers remount the entire shell via `key={mode}`. Proposed: a `setActor(actor)` method.
-
-**Decision (2026-09-17): reset-to-idle.** `setActor(newActor)` resets engine to idle, clears active skill, re-gates palette. Simple, predictable, no stale state. Losing form data on mode switch is acceptable — the user is changing context anyway. Crucible already does this via `key={mode}` remount; this makes it explicit.
-
-- **depends on:** nothing
-- **blocks:** none
-- **Acceptance criteria:**
-  - `setActor(actor)` method on ActionEngine and useActionEngine hook
-  - Resets engine to idle state (clears active skill, partial fields)
-  - Re-runs permission gate against new actor for all skills
-  - `EngineSnapshot` reflects new actor context
-  - `key={mode}` hack deletable from Crucible SkalShellWrapper
-  - Unit tests for reset behavior, gate re-check, and state clearing
 
 ### B2. redirect HandlerResult variant [Feature]
 
@@ -246,6 +230,7 @@ The TaskManager component needs a scheduling story for skills that fire on a cad
 
 | Item | Shipped | Notes |
 |------|---------|-------|
+| Actor mutability — setActor() (B1) | v0.7.1 (2026-09-17) | setActor() resets to idle, clears fields/errors/warnings, preserves route context, re-gates permissions; EngineSnapshot includes actor |
 | Page context awareness (F3) | v0.7.0 (2026-09-17) | Skill routes, setPageContext(), canSelect route filtering, classify route boost, defaultRouteMatcher prefix match, custom matchRoutes |
 | Warning precision + banner aggregation | v0.6.4 (2026-09-17) | choiceWarnings() quotes unmatched-only tokens; ActionCard merges per-field warnings into single banner |
 | Unmatched choice warnings + SkillRegistry export | v0.6.3 (2026-09-17) | P4: amber warning pills for unmatched names; P3: SkillRegistry re-exported from skal/ui; router scoring robustness (overlap+coverage) |
@@ -290,7 +275,7 @@ Grow:
 ```
 F1 (LLM fallback) ──→ improves extraction accuracy across all skills
 F3 (page context) ──→ B5 (suggestion pills filter by route)
-B1 (setActor) ──→ consumer UX (delete key={mode} hack)
+B1 (setActor) ──→ ✅ done v0.7.1 (consumer can delete key={mode} hack)
 B4 (voice input) ──→ depends on axon Deepgram STT
 F2 (TaskManager data) ──→ G2 (scheduling)
 P4 (unmatched feedback) ──→ improves extraction UX across all choice skills

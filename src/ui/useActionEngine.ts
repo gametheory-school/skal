@@ -35,6 +35,7 @@ export interface UseActionEngineReturn {
   dispatching: EngineSnapshot['dispatching']
   preparing: EngineSnapshot['preparing']
   currentRoute: EngineSnapshot['currentRoute']
+  actor: EngineSnapshot['actor']
   activeAction: ActionCardProps
   routeInput: (text: string) => Promise<boolean>
   selectSkill: (skillId: string, extractedFields?: Record<string, unknown>) => Promise<boolean>
@@ -45,6 +46,7 @@ export interface UseActionEngineReturn {
   cancel: () => Promise<{ cancelled: boolean; message: string }>
   reset: () => void
   setPageContext: (route: string) => void
+  setActor: (actor: ActorContext) => void
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────
@@ -120,6 +122,11 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
     [engine],
   )
 
+  const setActor = useCallback(
+    (actor: ActorContext) => engine.setActor(actor),
+    [engine],
+  )
+
   // Memoize activeAction from snapshot.
   const activeAction = useMemo<ActionCardProps>(() => {
     const requiredFields = snapshot.allFieldSpecs.filter((f) => f.required)
@@ -152,6 +159,7 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
     dispatching: snapshot.dispatching,
     preparing: snapshot.preparing,
     currentRoute: snapshot.currentRoute,
+    actor: snapshot.actor,
     activeAction,
     routeInput,
     selectSkill,
@@ -162,5 +170,6 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
     cancel,
     reset,
     setPageContext,
+    setActor,
   }
 }

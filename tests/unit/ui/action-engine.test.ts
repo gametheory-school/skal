@@ -1276,4 +1276,131 @@ describe('ActionEngine', () => {
       expect(await engine.canSelect('multi.route')).toBe(false)
     })
   })
+
+  describe('setActor()', () => {
+    it('updates actor in snapshot', () => {
+      const { engine } = setup()
+      const newActor: ActorContext = {
+        userId: 'u2',
+        organizationId: 'org2',
+        platformRole: 'admin',
+        orgRole: 'admin',
+      }
+
+      engine.setActor(newActor)
+
+      expect(engine.getSnapshot().actor).toEqual(newActor)
+    })
+
+    it('resets engine to idle when in active state', async () => {
+      const skill = makeSkill('test.skill')
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('test.skill')
+      expect(engine.state.kind).not.toBe('idle')
+
+      const newActor: ActorContext = {
+        userId: 'u2',
+        organizationId: 'org1',
+        platformRole: 'user',
+        orgRole: 'user',
+      }
+      engine.setActor(newActor)
+
+      expect(engine.state.kind).toBe('idle')
+      expect(engine.activeSkill).toBeUndefined()
+    })
+
+    it('clears partial fields on actor change', async () => {
+      const skill = makeSkill('test.skill')
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('test.skill')
+      engine.submitFields({ title: 'hello' })
+      expect(engine.getSnapshot().fields).toEqual({ title: 'hello' })
+
+      engine.setActor({
+        userId: 'u2',
+        organizationId: 'org1',
+        platformRole: 'user',
+        orgRole: 'user',
+      })
+
+      expect(engine.getSnapshot().fields).toEqual({})
+    })
+
+    it('clears errors and warnings on actor change', async () => {
+      const skill = makeSkill('test.skill')
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('test.skill')
+      engine.submitFields({})
+      expect(Object.keys(engine.getSnapshot().errors).length).toBeGreaterThan(0)
+
+      engine.setActor({
+        userId: 'u2',
+        organizationId: 'org1',
+        platformRole: 'user',
+        orgRole: 'user',
+      })
+
+      expect(engine.getSnapshot().errors).toEqual({})
+      expect(engine.getSnapshot().warnings).toEqual({})
+    })
+
+    it('re-gates skills against new actor via canSelect', async () => {
+      const skill = makeSkill('gated.skill')
+      const gate: PermissionGate = {
+        can: async (a: ActorContext, _action: string) => {
+          return a.userId === 'u1'
+        },
+      }
+      const { engine } = setup([skill], gate)
+
+      expect(await engine.canSelect('gated.skill')).toBe(true)
+
+      engine.setActor({
+        userId: 'u2',
+        organizationId: 'org1',
+        platformRole: 'user',
+        orgRole: 'user',
+      })
+
+      expect(await engine.canSelect('gated.skill')).toBe(false)
+    })
+
+    it('preserves route context across actor change', () => {
+      const { engine } = setup()
+
+      engine.setPageContext('/dashboard')
+      expect(engine.getSnapshot().currentRoute).toBe('/dashboard')
+
+      engine.setActor({
+        userId: 'u2',
+        organizationId: 'org1',
+        platformRole: 'user',
+        orgRole: 'user',
+      })
+
+      expect(engine.getSnapshot().currentRoute).toBe('/dashboard')
+    })
+
+    it('router uses new actor for classify after setActor', async () => {
+      const skill = makeSkill('test.skill', {
+        description: 'create a new post',
+      })
+      const { engine } = setup([skill])
+
+      engine.setActor({
+        userId: 'u2',
+        organizationId: 'org1',
+        platformRole: 'user',
+        orgRole: 'user',
+      })
+
+      const result = await engine.routeInput('create post')
+      expect(result).toBe(true)
+      expect(engine.activeSkill?.id).toBe('test.skill')
+    })
+  })
 })

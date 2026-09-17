@@ -3,6 +3,18 @@
 All notable changes to `@gametheory-school/skal` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com); versioning follows [semver](https://semver.org).
 
+## [0.7.1] — 2026-09-17
+
+### Added
+
+- **Actor mutability (B1)**: `setActor(newActor)` method on ActionEngine and useActionEngine hook swaps the actor context at runtime. Resets engine to idle (clears active skill, partial fields, errors, warnings). Route context is preserved. Permission gates re-evaluate against the new actor on subsequent `canSelect()` and `selectSkill()` calls. Router also updated to use the new actor for `classify()`. `EngineSnapshot` now includes `actor` field.
+
+### Consumer impact
+
+- **New method**: `engine.setActor(actor)` and `setActor(actor)` from hook.
+- **New snapshot field**: `actor: ActorContext` on EngineSnapshot.
+- **Non-breaking**: existing consumers unaffected. Consumers using `key={mode}` remount hack can switch to `setActor()` instead.
+
 ## [0.7.0] — 2026-09-17
 
 ### Added
