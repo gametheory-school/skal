@@ -3,6 +3,23 @@
 All notable changes to `@gametheory-school/skal` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com); versioning follows [semver](https://semver.org).
 
+## [0.6.0] — 2026-09-16
+
+### Added
+
+- **Cancel button in capturing/clarifying form**: secondary button next to Submit in the ActionCard's form mode. Calls `onReset` to exit the form. Styled as a gray-bordered secondary button using flex gap-2 layout with equal flex-1 widths alongside Submit.
+
+### Changed
+
+- **Word-level choice extraction**: `extractChoice()` now handles partial names (e.g., "clara" matching "Clara Chen"), dot-names (e.g., "clara.chen"), and full names. New `normalize()` helper lowercases and replaces `[._-]` with spaces. Matching is two-phase: (1) exact full-substring match first, (2) word-level scoring — tokenize input into words (3+ chars), tokenize each option label, score by startsWith overlap, pick highest scorer. Handles "nudge clara" → Clara Chen, "nudge clara.chen" → Clara Chen.
+- **Softer error styling**: field errors now render as a pill (`rounded bg-red-50 px-2 py-0.5 text-xs text-red-700`) instead of raw red text. Subtler visual weight while maintaining clarity.
+
+### Consumer impact
+
+- **Cancel button**: no action needed — forms now have an explicit exit path. Users can cancel out of the clarify loop without submitting.
+- **Word-level extraction**: natural-language routing now matches partial names and dot-separated names more reliably. No API change — existing skills benefit automatically.
+- **Softer errors**: visual polish only. No API change.
+
 ## [0.5.0] — 2026-09-16
 
 ### Added
