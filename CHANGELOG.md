@@ -3,6 +3,21 @@
 All notable changes to `@gametheory-school/skal` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com); versioning follows [semver](https://semver.org).
 
+## [0.7.0] — 2026-09-17
+
+### Added
+
+- **Page context awareness (F3)**: skills can declare `routes?: string[]` to restrict availability to specific pages. `setPageContext(route)` on ActionEngine and useActionEngine hook sets the current page. `canSelect()` returns false for skills whose routes don't match the current page. `classify()` applies a score boost (+0.15) to skills matching the current route, resolving ambiguous inputs in favor of the page-contextual skill. Default route matcher is prefix-based (`/dashboard` matches `/dashboard/settings`). Consumer can provide custom `matchRoutes` function via `ActionEngineConfig`. `EngineSnapshot` includes `currentRoute` for consumer UI.
+
+### Consumer impact
+
+- **New optional fields**: `SkillDefinition.routes?: string[]` — declare route restrictions per skill.
+- **New methods**: `engine.setPageContext(route)` and `setPageContext(route)` from hook.
+- **New config**: `ActionEngineConfig.matchRoutes` — custom route matching function.
+- **New snapshot field**: `currentRoute: string | null` on EngineSnapshot.
+- **New exports**: `RouteMatcher` type from universal entry, `ActionEngineConfig` and `defaultRouteMatcher` from UI entry.
+- **Non-breaking**: all additions are optional. Existing skills without `routes` work unchanged.
+
 ## [0.6.4] — 2026-09-17
 
 ### Changed

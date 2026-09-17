@@ -11,7 +11,7 @@ import type {
 import type { ExtractionLLM } from '../fields/extract.js'
 import { SkillRegistry } from '../engine/registry.js'
 import { ActionEngine } from './ActionEngine.js'
-import type { ActionCardProps, EngineSnapshot } from './ActionEngine.js'
+import type { ActionCardProps, EngineSnapshot, ActionEngineConfig } from './ActionEngine.js'
 
 // ─── Hook options ──────────────────────────────────────────────────
 
@@ -20,6 +20,7 @@ export interface UseActionEngineOptions {
   permissionGate: PermissionGate
   actor: ActorContext
   llm?: ExtractionLLM
+  config?: ActionEngineConfig
 }
 
 // ─── Hook return type ──────────────────────────────────────────────
@@ -33,6 +34,7 @@ export interface UseActionEngineReturn {
   allFieldSpecs: EngineSnapshot['allFieldSpecs']
   dispatching: EngineSnapshot['dispatching']
   preparing: EngineSnapshot['preparing']
+  currentRoute: EngineSnapshot['currentRoute']
   activeAction: ActionCardProps
   routeInput: (text: string) => Promise<boolean>
   selectSkill: (skillId: string, extractedFields?: Record<string, unknown>) => Promise<boolean>
@@ -42,6 +44,7 @@ export interface UseActionEngineReturn {
   dispatch: () => Promise<HandlerResult>
   cancel: () => Promise<{ cancelled: boolean; message: string }>
   reset: () => void
+  setPageContext: (route: string) => void
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────
@@ -51,12 +54,12 @@ export interface UseActionEngineReturn {
  * Thin subscription wrapper — all logic lives in ActionEngine.
  */
 export function useActionEngine(options: UseActionEngineOptions): UseActionEngineReturn {
-  const { registry, permissionGate, actor, llm } = options
+  const { registry, permissionGate, actor, llm, config } = options
 
   // Create engine once (stable ref).
   const engineRef = useRef<ActionEngine | null>(null)
   if (!engineRef.current) {
-    engineRef.current = new ActionEngine(registry, permissionGate, actor, llm)
+    engineRef.current = new ActionEngine(registry, permissionGate, actor, llm, config)
   }
   const engine = engineRef.current
 
@@ -112,6 +115,11 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
     [engine],
   )
 
+  const setPageContext = useCallback(
+    (route: string) => engine.setPageContext(route),
+    [engine],
+  )
+
   // Memoize activeAction from snapshot.
   const activeAction = useMemo<ActionCardProps>(() => {
     const requiredFields = snapshot.allFieldSpecs.filter((f) => f.required)
@@ -143,6 +151,7 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
     allFieldSpecs: snapshot.allFieldSpecs,
     dispatching: snapshot.dispatching,
     preparing: snapshot.preparing,
+    currentRoute: snapshot.currentRoute,
     activeAction,
     routeInput,
     selectSkill,
@@ -152,5 +161,6 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
     dispatch,
     cancel,
     reset,
+    setPageContext,
   }
 }

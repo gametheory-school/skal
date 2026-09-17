@@ -6,8 +6,10 @@ import type {
   ActorContext,
   PermissionGate,
   HandlerResult,
+  RouteMatcher,
 } from '../../../src/engine/types.js'
 import { z } from 'zod'
+import type { ActionEngineConfig } from '../../../src/ui/ActionEngine.js'
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
@@ -49,10 +51,11 @@ function denyAll(): PermissionGate {
 function setup(
   skills: SkillDefinition[] = [],
   gate: PermissionGate = allowAll(),
+  config?: ActionEngineConfig,
 ) {
   const registry = new SkillRegistry()
   for (const s of skills) registry.register(s)
-  const engine = new ActionEngine(registry, gate, actor)
+  const engine = new ActionEngine(registry, gate, actor, undefined, config)
   return { registry, engine }
 }
 
@@ -1152,6 +1155,125 @@ describe('ActionEngine', () => {
       // Only submit entry_text — template_id is auto-resolved.
       engine.submitFields({ entry_text: 'Today I learned...' })
       expect(engine.state.kind).toBe('validated')
+    })
+  })
+
+  // ─── F3: Page context awareness ─────────────────────────────────
+
+  describe('page context awareness', () => {
+    it('starts with currentRoute null in snapshot', () => {
+      const { engine } = setup([makeSkill('test.skill')])
+      expect(engine.getSnapshot().currentRoute).toBeNull()
+    })
+
+    it('setPageContext updates currentRoute in snapshot', () => {
+      const { engine } = setup([makeSkill('test.skill')])
+      engine.setPageContext('/dashboard')
+      expect(engine.getSnapshot().currentRoute).toBe('/dashboard')
+    })
+
+    it('canSelect returns false for skills whose routes do not match', async () => {
+      const skill = makeSkill('dashboard.widget', {
+        routes: ['/dashboard'],
+      })
+      const { engine } = setup([skill])
+      engine.setPageContext('/settings')
+      expect(await engine.canSelect('dashboard.widget')).toBe(false)
+    })
+
+    it('canSelect returns true for skills whose routes match current page', async () => {
+      const skill = makeSkill('dashboard.widget', {
+        routes: ['/dashboard'],
+      })
+      const { engine } = setup([skill])
+      engine.setPageContext('/dashboard/settings')
+      expect(await engine.canSelect('dashboard.widget')).toBe(true)
+    })
+
+    it('canSelect returns true for skills without routes regardless of page', async () => {
+      const skill = makeSkill('global.skill')
+      const { engine } = setup([skill])
+      engine.setPageContext('/any/page')
+      expect(await engine.canSelect('global.skill')).toBe(true)
+    })
+
+    it('canSelect returns true when no route is set regardless of skill routes', async () => {
+      const skill = makeSkill('dashboard.widget', {
+        routes: ['/dashboard'],
+      })
+      const { engine } = setup([skill])
+      expect(await engine.canSelect('dashboard.widget')).toBe(true)
+    })
+
+    it('classify boosts skills matching current route on ambiguous input', async () => {
+      const dashboardSkill = makeSkill('dashboard.view', {
+        description: 'view dashboard',
+        routes: ['/dashboard'],
+        fieldSchema: z.object({ name: z.string().min(1) }),
+        questions: { name: 'What name?' },
+      })
+      const settingsSkill = makeSkill('settings.view', {
+        description: 'view settings',
+        routes: ['/settings'],
+        fieldSchema: z.object({ name: z.string().min(1) }),
+        questions: { name: 'What name?' },
+      })
+      const { engine } = setup([dashboardSkill, settingsSkill])
+
+      engine.setPageContext('/dashboard')
+      const routed = await engine.routeInput('view page')
+      expect(routed).toBe(true)
+      expect(engine.state.kind).not.toBe('idle')
+      expect(engine.activeSkill?.id).toBe('dashboard.view')
+    })
+
+    it('default prefix matching: /dashboard matches /dashboard/sub', async () => {
+      const skill = makeSkill('dashboard.widget', {
+        routes: ['/dashboard'],
+      })
+      const { engine } = setup([skill])
+      engine.setPageContext('/dashboard/sub/page')
+      expect(await engine.canSelect('dashboard.widget')).toBe(true)
+    })
+
+    it('default prefix matching: /dashboard does not match /dash', async () => {
+      const skill = makeSkill('dashboard.widget', {
+        routes: ['/dashboard'],
+      })
+      const { engine } = setup([skill])
+      engine.setPageContext('/dash')
+      expect(await engine.canSelect('dashboard.widget')).toBe(false)
+    })
+
+    it('supports custom matchRoutes function', async () => {
+      const skill = makeSkill('exact.route.skill', {
+        routes: ['/exact'],
+      })
+      const exactOnly: RouteMatcher = (routes, current) =>
+        routes.some((r) => r === current)
+      const { engine } = setup([skill], allowAll(), { matchRoutes: exactOnly })
+
+      engine.setPageContext('/exact')
+      expect(await engine.canSelect('exact.route.skill')).toBe(true)
+
+      engine.setPageContext('/exact/sub')
+      expect(await engine.canSelect('exact.route.skill')).toBe(false)
+    })
+
+    it('skills with multiple routes match if any route matches', async () => {
+      const skill = makeSkill('multi.route', {
+        routes: ['/dashboard', '/admin'],
+      })
+      const { engine } = setup([skill])
+
+      engine.setPageContext('/dashboard')
+      expect(await engine.canSelect('multi.route')).toBe(true)
+
+      engine.setPageContext('/admin')
+      expect(await engine.canSelect('multi.route')).toBe(true)
+
+      engine.setPageContext('/settings')
+      expect(await engine.canSelect('multi.route')).toBe(false)
     })
   })
 })

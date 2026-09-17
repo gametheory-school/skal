@@ -28,6 +28,7 @@ export type {
   ActionState,
   ActionEvent,
   ScheduleTrigger,
+  RouteMatcher,
 } from './engine/types.js'
 
 export type {

@@ -50,6 +50,8 @@ export interface SkillDefinition {
   requiredRole?: string
   platformOnly?: boolean
   cancellable?: boolean
+  /** Optional route patterns. When set, skill is only available on matching pages. */
+  routes?: string[]
   handler: SkillHandler
   cancel?: (executionId: string) => Promise<void>
 }
@@ -81,6 +83,14 @@ export interface ActorContext {
 export interface PermissionGate {
   can(actor: ActorContext, actionId: string): Promise<boolean>
 }
+
+// ─── Route Matching ───────────────────────────────────────────────
+
+/**
+ * Determines whether a skill's route patterns match the current page.
+ * Default: prefix match — `currentRoute.startsWith(skillRoute)`.
+ */
+export type RouteMatcher = (skillRoutes: string[], currentRoute: string) => boolean
 
 // ─── Action State (state machine states) ──────────────────────────
 

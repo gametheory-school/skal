@@ -368,4 +368,87 @@ describe('SkillRouter', () => {
       expect(result!.skillId).toBe('journal.entry')
     })
   })
+
+  // ─── Route boost ─────────────────────────────────────────────────
+
+  describe('route boost', () => {
+    it('boosts skill matching currentRoute on ambiguous input', async () => {
+      registry.register(makeSkill('dashboard.view', {
+        description: 'view page',
+        routes: ['/dashboard'],
+      }))
+      registry.register(makeSkill('settings.view', {
+        description: 'view page',
+        routes: ['/settings'],
+      }))
+
+      const router = new SkillRouter(registry, userActor)
+      const result = await router.classify('view page', '/dashboard')
+
+      expect(result).not.toBeNull()
+      expect(result!.skillId).toBe('dashboard.view')
+    })
+
+    it('no boost when currentRoute is not provided', async () => {
+      registry.register(makeSkill('dashboard.view', {
+        description: 'view dashboard page',
+        routes: ['/dashboard'],
+      }))
+      registry.register(makeSkill('settings.view', {
+        description: 'view settings',
+        routes: ['/settings'],
+      }))
+
+      const router = new SkillRouter(registry, userActor)
+      // "view dashboard" matches dashboard.view better on text alone.
+      const result = await router.classify('view dashboard')
+
+      expect(result).not.toBeNull()
+      expect(result!.skillId).toBe('dashboard.view')
+    })
+
+    it('no boost when skill has no routes', async () => {
+      registry.register(makeSkill('global.action', {
+        description: 'view page',
+      }))
+      registry.register(makeSkill('dashboard.view', {
+        description: 'view page',
+        routes: ['/dashboard'],
+      }))
+
+      const router = new SkillRouter(registry, userActor)
+      const result = await router.classify('view page', '/dashboard')
+
+      // Both match equally on text; dashboard gets boost but global has no routes.
+      // The boost should make dashboard.view win.
+      expect(result).not.toBeNull()
+      expect(result!.skillId).toBe('dashboard.view')
+    })
+
+    it('supports custom matchRoutes function', async () => {
+      registry.register(makeSkill('exact.skill', {
+        description: 'exact match',
+        routes: ['/exact'],
+      }))
+      registry.register(makeSkill('other.skill', {
+        description: 'exact match',
+        routes: ['/other'],
+      }))
+
+      const exactOnly = (routes: string[], current: string) =>
+        routes.some((r) => r === current)
+
+      const router = new SkillRouter(registry, userActor)
+
+      const match = await router.classify('exact match', '/exact', exactOnly)
+      expect(match).not.toBeNull()
+      expect(match!.skillId).toBe('exact.skill')
+
+      const noMatch = await router.classify('exact match', '/exact/sub', exactOnly)
+      // With exact matching, /exact/sub doesn't match /exact — no boost.
+      // First registered wins on equal scores.
+      expect(noMatch).not.toBeNull()
+      expect(noMatch!.skillId).toBe('exact.skill')
+    })
+  })
 })

@@ -8,6 +8,7 @@ import type {
   HandlerResult,
   ScheduleTrigger,
   FieldMetaInput,
+  RouteMatcher,
 } from '../engine/types.js'
 import type { ExtractionLLM, ExtractionResult } from '../fields/extract.js'
 import { extractFields } from '../fields/extract.js'
@@ -48,6 +49,20 @@ export interface EngineSnapshot {
   allFieldSpecs: FieldSpec[]
   dispatching: boolean
   preparing: boolean
+  currentRoute: string | null
+}
+
+// ─── Engine Config ─────────────────────────────────────────────────
+
+export interface ActionEngineConfig {
+  matchRoutes?: RouteMatcher
+}
+
+// ─── Default Route Matcher ─────────────────────────────────────────
+
+/** Prefix match: skill route is a prefix of the current route. */
+export function defaultRouteMatcher(skillRoutes: string[], currentRoute: string): boolean {
+  return skillRoutes.some((route) => currentRoute.startsWith(route))
 }
 
 // ─── Listener ──────────────────────────────────────────────────────
@@ -77,6 +92,7 @@ export class ActionEngine {
   private _pendingReset = false
   private _routeQueue: Promise<unknown> = Promise.resolve()
   private _resolvedFieldMeta: Record<string, FieldMetaInput> | undefined = undefined
+  private _currentRoute: string | null = null
 
   private listeners = new Set<Listener>()
 
@@ -85,6 +101,7 @@ export class ActionEngine {
     private readonly permissionGate: PermissionGate,
     private readonly actor: ActorContext,
     private readonly llm?: ExtractionLLM,
+    private readonly config?: ActionEngineConfig,
   ) {
     this.dispatcher = new Dispatcher(permissionGate)
     this.router = new SkillRouter(registry, actor, llm)
@@ -117,6 +134,7 @@ export class ActionEngine {
       allFieldSpecs: this._allFieldSpecs,
       dispatching: this._dispatching,
       preparing: this._preparing,
+      currentRoute: this._currentRoute,
     }
   }
 
@@ -126,11 +144,28 @@ export class ActionEngine {
    * Pre-flight permission check for a skill.
    * For command palettes / route-time gating — does not transition state.
    * Returns false for unregistered skills.
+   * Returns false for skills whose routes don't match the current page.
    */
   async canSelect(skillId: string): Promise<boolean> {
     const skill = this.registry.get(skillId)
     if (!skill) return false
+    if (!this.skillMatchesRoute(skill)) return false
     return checkAtCompose(this.permissionGate, this.actor, skillId)
+  }
+
+  /**
+   * Set the current page route. Affects canSelect() filtering and
+   * classify() scoring boost for route-matching skills.
+   */
+  setPageContext(route: string): void {
+    this._currentRoute = route
+    this.notify()
+  }
+
+  private skillMatchesRoute(skill: SkillDefinition): boolean {
+    if (!skill.routes?.length || !this._currentRoute) return true
+    const matcher = this.config?.matchRoutes ?? defaultRouteMatcher
+    return matcher(skill.routes, this._currentRoute)
   }
 
   /**
@@ -463,7 +498,7 @@ export class ActionEngine {
       try {
         if (!this.router) return false
 
-        const result = await this.router.classify(text)
+        const result = await this.router.classify(text, this._currentRoute ?? undefined, this.config?.matchRoutes)
         if (!result) return false
 
         return await this.selectSkillWithInput(result.skillId, result.extractedFields, text)

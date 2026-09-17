@@ -1,4 +1,4 @@
-import type { SkillDefinition, ActorContext, FieldSpec } from './types.js'
+import type { SkillDefinition, ActorContext, FieldSpec, RouteMatcher } from './types.js'
 import type { ExtractionLLM } from '../fields/extract.js'
 import { extractFields } from '../fields/extract.js'
 import { buildFieldSpecs } from '../fields/validate.js'
@@ -18,6 +18,15 @@ export interface RouterOptions {
   /** Minimum gap between top two scores (default 0.1). */
   ambiguityGap?: number
 }
+
+// ─── Default Route Matcher ─────────────────────────────────────────
+
+function defaultRouteMatcher(skillRoutes: string[], currentRoute: string): boolean {
+  return skillRoutes.some((route) => currentRoute.startsWith(route))
+}
+
+/** Score boost applied when a skill's routes match the current page. */
+const ROUTE_BOOST = 0.15
 
 // ─── SkillRouter ───────────────────────────────────────────────────
 
@@ -42,8 +51,9 @@ export class SkillRouter {
   /**
    * Classify natural language input and return the best-matching skill
    * with any deterministically extracted fields.
+   * When currentRoute is provided, skills whose routes match get a score boost.
    */
-  async classify(input: string): Promise<RouteResult | null> {
+  async classify(input: string, currentRoute?: string, matchRoutes?: RouteMatcher): Promise<RouteResult | null> {
     if (!input.trim()) return null
 
     const available = this.registry.availableFor(this.actor)
@@ -53,11 +63,16 @@ export class SkillRouter {
     const tokens = tokenize(input)
     if (tokens.length < 2) return null
 
+    const routeMatcher = matchRoutes ?? defaultRouteMatcher
+
     // Deterministic pass.
-    const scores = available.map((skill) => ({
-      skill,
-      score: this.scoreSkill(input, skill),
-    }))
+    const scores = available.map((skill) => {
+      let score = this.scoreSkill(input, skill)
+      if (currentRoute && skill.routes?.length && routeMatcher(skill.routes, currentRoute)) {
+        score += ROUTE_BOOST
+      }
+      return { skill, score }
+    })
 
     // Sort descending by score.
     scores.sort((a, b) => b.score - a.score)

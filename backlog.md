@@ -35,7 +35,7 @@ An item is **pullable** when: it's in "Ready to pull," all `depends on` items ar
 
 | Item | Tag | Why now |
 |------|-----|---------|
-| F3. Page context awareness [Feature] | [Feature] | Enables skill filtering by route + extraction disambiguation; foundational for suggestion pills (B5) |
+| B1. Actor mutability — setActor() [Spike] | [Spike] | Deletes `key={mode}` hack in Crucible; clean reset-on-actor-change |
 
 ### 2. Blocked
 
@@ -100,23 +100,6 @@ Core engine infrastructure, types, state machine primitives.
   - In-memory default implementation
   - TaskManager component consumes the data source
   - Unit tests
-
-### F3. Page context awareness [Feature]
-
-Skal has no concept of which page/route the user is viewing. This limits intent disambiguation and prevents route-scoped skill filtering. Adding page context enables: (a) skill filtering — only some skills available on certain pages, (b) extraction disambiguation — page context helps resolve ambiguous inputs.
-
-**API design:** `setPageContext(route)` method on engine + hook. Each skill gets optional `routes?: string[]` in its definition. Consumer passes `matchRoutes?: (skillRoutes: string[], currentRoute: string) => boolean` for custom matching (default: prefix match). `canSelect()` returns false for non-matching skills; `classify()` boosts matching skills when ambiguous.
-
-- **depends on:** nothing
-- **blocks:** B5 (suggestion pills benefit from page context)
-- **Acceptance criteria:**
-  - `setPageContext(route: string)` method on ActionEngine and useActionEngine hook
-  - `SkillDefinition` extended with optional `routes?: string[]`
-  - `ActionEngineConfig` accepts optional `matchRoutes` function
-  - `canSelect()` returns false for skills whose routes don't match current page
-  - `classify()` boosts skills matching current route on ambiguous input
-  - `EngineSnapshot` includes `currentRoute` for consumer UI
-  - Unit tests for filtering, disambiguation, and default prefix matching
 
 ---
 
@@ -263,6 +246,7 @@ The TaskManager component needs a scheduling story for skills that fire on a cad
 
 | Item | Shipped | Notes |
 |------|---------|-------|
+| Page context awareness (F3) | v0.7.0 (2026-09-17) | Skill routes, setPageContext(), canSelect route filtering, classify route boost, defaultRouteMatcher prefix match, custom matchRoutes |
 | Warning precision + banner aggregation | v0.6.4 (2026-09-17) | choiceWarnings() quotes unmatched-only tokens; ActionCard merges per-field warnings into single banner |
 | Unmatched choice warnings + SkillRegistry export | v0.6.3 (2026-09-17) | P4: amber warning pills for unmatched names; P3: SkillRegistry re-exported from skal/ui; router scoring robustness (overlap+coverage) |
 | Cancel button on forms | v0.6.0 (2026-09-16) | Secondary button next to Submit in capturing/clarifying; calls onReset |
