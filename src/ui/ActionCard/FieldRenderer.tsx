@@ -4,6 +4,7 @@ export interface FieldRendererProps {
   field: FieldSpec
   value: unknown
   onChange: (value: unknown) => void
+  onBlur?: () => void
   error?: string
   question?: string
 }
@@ -16,6 +17,7 @@ export function FieldRenderer({
   field,
   value,
   onChange,
+  onBlur,
   error,
   question,
 }: FieldRendererProps) {
@@ -29,10 +31,13 @@ export function FieldRenderer({
         </label>
       )}
 
-      {renderInput(field, value, onChange, id)}
+      {renderInput(field, value, onChange, onBlur, id, error)}
 
       {error && (
-        <p className="mt-1 inline-block rounded bg-red-50 px-2 py-0.5 text-xs text-red-700">
+        <p
+          id={`${id}-error`}
+          className="mt-1 inline-block rounded bg-red-50 px-2 py-0.5 text-xs text-red-700"
+        >
           {error}
         </p>
       )}
@@ -44,9 +49,21 @@ function renderInput(
   field: FieldSpec,
   value: unknown,
   onChange: (value: unknown) => void,
+  onBlur: (() => void) | undefined,
   id: string,
+  error?: string,
 ) {
   const strValue = value != null ? String(value) : ''
+
+  const className = `w-full rounded border ${
+    error
+      ? 'border-red-400 focus:border-red-500'
+      : 'border-gray-300 focus:border-indigo-500'
+  } px-3 py-2 text-sm focus:outline-none`
+  const ariaProps = {
+    'aria-describedby': error ? `${id}-error` : undefined,
+    'aria-invalid': error ? true : undefined,
+  }
 
   switch (field.inputType) {
     case 'text':
@@ -56,8 +73,10 @@ function renderInput(
             id={id}
             value={strValue}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+            onBlur={onBlur}
+            className={className}
             rows={3}
+            {...ariaProps}
           />
         )
       }
@@ -67,7 +86,9 @@ function renderInput(
           type="text"
           value={strValue}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          onBlur={onBlur}
+          className={className}
+          {...ariaProps}
         />
       )
 
@@ -78,7 +99,9 @@ function renderInput(
           type="email"
           value={strValue}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          onBlur={onBlur}
+          className={className}
+          {...ariaProps}
         />
       )
 
@@ -89,7 +112,8 @@ function renderInput(
           type="datetime-local"
           value={strValue}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          className={className}
+          {...ariaProps}
         />
       )
 
@@ -100,7 +124,9 @@ function renderInput(
           type="text"
           value={strValue}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          onBlur={onBlur}
+          className={className}
+          {...ariaProps}
         />
       )
 
@@ -110,7 +136,8 @@ function renderInput(
           id={id}
           value={strValue}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          className={className}
+          {...ariaProps}
         >
           <option value="">Select...</option>
           {field.options?.map((opt) => (
@@ -128,7 +155,9 @@ function renderInput(
           type="text"
           value={strValue}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          onBlur={onBlur}
+          className={className}
+          {...ariaProps}
         />
       )
   }

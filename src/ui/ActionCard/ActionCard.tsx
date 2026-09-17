@@ -5,6 +5,7 @@ import type {
   SkillDefinition,
 } from '../../engine/types.js'
 import { FieldRenderer } from './FieldRenderer.js'
+import { validateFieldValue } from '../../fields/validate-field.js'
 import { Composer } from '../Composer.js'
 import {
   ExecutingState,
@@ -72,6 +73,10 @@ export function ActionCard(props: ActionCardProps) {
       setShowOptional(false)
       setMode('form')
       setSubmitted(false)
+      setFieldErrors({})
+      setTouchedFields(new Set())
+      debounceTimers.current.forEach((timer) => clearTimeout(timer))
+      debounceTimers.current.clear()
       savedTextRef.current = ''
     }
   }, [skill?.id, props.currentFields])
@@ -82,6 +87,21 @@ export function ActionCard(props: ActionCardProps) {
   const [showOptional, setShowOptional] = useState(false)
   // Issue 2: gate error display on first submit attempt.
   const [submitted, setSubmitted] = useState(false)
+
+  // Live validation: validate on blur, revalidate debounced on change once
+  // a field has been touched. Live errors live here; engine errors in props.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({})
+  const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set())
+  const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+  // Pending debounce timers must not fire after unmount.
+  useEffect(() => {
+    const timers = debounceTimers.current
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer))
+      timers.clear()
+    }
+  }, [])
 
   // ─── idle ──────────────────────────────────────────────────
 
@@ -96,6 +116,69 @@ export function ActionCard(props: ActionCardProps) {
     const interactiveOptional = props.optionalFields.filter((f) => !f.autoResolved)
     const autoResolvedOptional = props.optionalFields.filter((f) => f.autoResolved)
     const autoResolvedFields = [...autoResolvedRequired, ...autoResolvedOptional]
+
+    // Live validation covers interactive fields only — datetime is skipped
+    // (validateFieldValue has no datetime support) and choice mismatches
+    // surface through the warning banner instead.
+    const validateInteractive = (field: FieldSpec, value: unknown): string | null => {
+      if (field.inputType === 'datetime' || field.inputType === 'choice') return null
+      return validateFieldValue(field, String(value ?? ''))
+    }
+
+    const markTouched = (key: string) => {
+      setTouchedFields((prev) => {
+        if (prev.has(key)) return prev
+        const next = new Set(prev)
+        next.add(key)
+        return next
+      })
+    }
+
+    const clearDebounce = (key: string) => {
+      const timer = debounceTimers.current.get(key)
+      if (timer) {
+        clearTimeout(timer)
+        debounceTimers.current.delete(key)
+      }
+    }
+
+    const handleFieldChange = (field: FieldSpec, v: unknown) => {
+      const wasTouched = touchedFields.has(field.key)
+      markTouched(field.key)
+      setLocalFields((prev) => ({ ...prev, [field.key]: v }))
+
+      const error = validateInteractive(field, v)
+
+      // Corrections clear the error immediately, without debounce.
+      if (error === null) {
+        clearDebounce(field.key)
+        setFieldErrors((prev) =>
+          prev[field.key] ? { ...prev, [field.key]: null } : prev,
+        )
+        return
+      }
+
+      // New errors only surface after the user pauses typing, and only for
+      // fields the user had already interacted with before this edit.
+      if (!wasTouched) return
+      clearDebounce(field.key)
+      debounceTimers.current.set(
+        field.key,
+        setTimeout(() => {
+          debounceTimers.current.delete(field.key)
+          setFieldErrors((prev) => ({ ...prev, [field.key]: error }))
+        }, 500),
+      )
+    }
+
+    const handleFieldBlur = (field: FieldSpec) => {
+      markTouched(field.key)
+      clearDebounce(field.key)
+      const error = validateInteractive(field, localFields[field.key])
+      setFieldErrors((prev) => ({ ...prev, [field.key]: error }))
+    }
+
+    const hasLiveErrors = Object.values(fieldErrors).some((e) => !!e)
 
     const handleSubmit = () => {
       setSubmitted(true)
@@ -185,10 +268,12 @@ export function ActionCard(props: ActionCardProps) {
                 key={field.key}
                 field={field}
                 value={localFields[field.key]}
-                onChange={(v) =>
-                  setLocalFields((prev) => ({ ...prev, [field.key]: v }))
+                onChange={(v) => handleFieldChange(field, v)}
+                onBlur={() => handleFieldBlur(field)}
+                error={
+                  fieldErrors[field.key] ??
+                  (submitted ? props.errors[field.key] : undefined)
                 }
-                error={submitted ? props.errors[field.key] : undefined}
                 question={props.questions[field.key]}
               />
             ))}
@@ -208,13 +293,12 @@ export function ActionCard(props: ActionCardProps) {
                       key={field.key}
                       field={field}
                       value={localFields[field.key]}
-                      onChange={(v) =>
-                        setLocalFields((prev) => ({
-                          ...prev,
-                          [field.key]: v,
-                        }))
+                      onChange={(v) => handleFieldChange(field, v)}
+                      onBlur={() => handleFieldBlur(field)}
+                      error={
+                        fieldErrors[field.key] ??
+                        (submitted ? props.errors[field.key] : undefined)
                       }
-                      error={submitted ? props.errors[field.key] : undefined}
                       question={props.questions[field.key]}
                     />
                   ))}
@@ -230,7 +314,12 @@ export function ActionCard(props: ActionCardProps) {
               </button>
               <button
                 onClick={handleSubmit}
-                className="flex-1 rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                disabled={hasLiveErrors}
+                className={`flex-1 rounded px-4 py-2 text-sm font-medium text-white ${
+                  hasLiveErrors
+                    ? 'cursor-not-allowed bg-indigo-300'
+                    : 'bg-indigo-600 hover:bg-indigo-700'
+                }`}
               >
                 Submit
               </button>
