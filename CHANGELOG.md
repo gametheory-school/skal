@@ -3,6 +3,21 @@
 All notable changes to `@gametheory-school/skal` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com); versioning follows [semver](https://semver.org).
 
+## [0.8.3] — 2026-09-17
+
+### Added
+
+- **Custom extractors**: new `CustomExtractors` type (`Partial<Record<InputType, (text, field) => unknown | undefined>>`), exported from the universal entry point. Pass as an optional third argument to `extractFields()` or `extractDeterministic()` to override built-in extraction per input type — e.g. a timezone-aware datetime parser. Returning `undefined` falls through to the built-in extractor for that type.
+
+### Changed
+
+- **Contact fields now extract emails deterministically**: `contact` fields previously fell through to the default (no extraction); they now use the same unanchored email matcher as `email` fields. Text typed alongside a contact prompt (e.g. "Ask sam@example.com about it") now pre-fills the field.
+
+### Consumer impact
+
+- **Non-breaking**: `customExtractors` is an optional parameter; existing `extractFields()`/`extractDeterministic()` calls are unaffected.
+- **Behavior change**: skills using `inputType: 'contact'` may now pre-fill from raw input where they previously always asked. Remove any consumer-side contact pre-fill workarounds if they would now double-apply.
+
 ## [0.8.2] — 2026-09-17
 
 ### Added

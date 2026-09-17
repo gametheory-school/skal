@@ -72,6 +72,84 @@ describe('extractDeterministic', () => {
   it('returns undefined for text input (no deterministic extraction)', () => {
     expect(extractDeterministic('some text', textField)).toBeUndefined()
   })
+
+  it('extracts email from contact fields', () => {
+    const contactField: FieldSpec = {
+      key: 'contact',
+      label: 'Contact',
+      inputType: 'contact',
+      required: true,
+    }
+    expect(extractDeterministic('Ask sam@example.com about it', contactField)).toBe(
+      'sam@example.com',
+    )
+  })
+})
+
+describe('custom extractors', () => {
+  const datetimeField2: FieldSpec = {
+    key: 'when',
+    label: 'When',
+    inputType: 'datetime',
+    required: true,
+  }
+
+  it('overrides built-in extraction when the custom extractor returns a value', () => {
+    const custom = {
+      datetime: () => '2026-03-05T09:00:00-05:00',
+    }
+    expect(extractDeterministic('tomorrow at 9', datetimeField2, custom)).toBe(
+      '2026-03-05T09:00:00-05:00',
+    )
+  })
+
+  it('falls through to built-in when the custom extractor returns undefined', () => {
+    const custom = {
+      datetime: () => undefined,
+    }
+    expect(extractDeterministic('Meeting on 2026-09-16T10:00:00Z', datetimeField2, custom)).toBe(
+      '2026-09-16T10:00:00Z',
+    )
+  })
+
+  it('leaves other input types on built-in extraction', () => {
+    const custom = {
+      datetime: () => 'overridden',
+    }
+    expect(extractDeterministic('hello@example.com', emailField, custom)).toBe(
+      'hello@example.com',
+    )
+  })
+
+  it('passes the field spec to the custom extractor', () => {
+    let received: FieldSpec | undefined
+    const custom = {
+      text: (_text: string, field: FieldSpec) => {
+        received = field
+        return 'resolved'
+      },
+    }
+    expect(extractDeterministic('some text', textField, custom)).toBe('resolved')
+    expect(received?.key).toBe('title')
+  })
+
+  it('threads custom extractors through extractFields', () => {
+    const custom = {
+      text: (text: string) => text.trim(),
+    }
+    const result = extractFields('  My Title  ', [textField], custom)
+    expect(result.extracted).toEqual({ title: 'My Title' })
+    expect(result.missing).toEqual([])
+  })
+
+  it('extractFields marks missing when custom extractor returns undefined', () => {
+    const custom = {
+      text: () => undefined,
+    }
+    const result = extractFields('some text', [textField], custom)
+    expect(result.extracted).toEqual({})
+    expect(result.missing).toEqual(['title'])
+  })
 })
 
 describe('extractFields', () => {
