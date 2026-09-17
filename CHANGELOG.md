@@ -3,6 +3,29 @@
 All notable changes to `@gametheory-school/skal` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com); versioning follows [semver](https://semver.org).
 
+## [0.6.3] — 2026-09-17
+
+### Added
+
+- **Unmatched choice warnings (P4)**: when natural-language input contains a name/token that doesn't match any choice option (e.g., "nudge tuvalu" when no coachee named Tuvalu exists), the engine surfaces a non-blocking amber warning on the form: "No match for 'tuvalu' in Coachee. Please choose an option manually." The form remains usable — user can select manually. Warnings clear on submit, reset, or when a valid option is selected. Implemented via `choiceWarnings()` method in ActionEngine that uses a known-words heuristic to avoid warning on intent-only input (e.g., "nudge a coachee" doesn't warn). Warnings included in `EngineSnapshot` and `ActionCardProps` for consumer UI rendering.
+- **SkillRegistry re-export from skal/ui (P3)**: `SkillRegistry` now exported from `src/ui.ts` alongside other UI components. Consumers can import from `@gametheory-school/skal/ui` without casting to `as any` in client components.
+
+### Changed
+
+- **Router scoring robustness**: `matchScore()` in SkillRouter now uses a weighted combination of overlap (80%) and coverage (20%) instead of pure overlap. This makes scoring robust to extra words in the input (e.g., field values like "clara.chen" in "nudge clara.chen") while still preventing false positives. Default threshold lowered from 0.3 to 0.27 to accommodate inputs with field values.
+- **Prepared options are authoritative**: router's pre-prepare choice guesses are now discarded after prepare() resolves. Field values are re-extracted from raw input using the prepared options, ensuring dynamic options from prepare() are used for matching instead of stale static options.
+- **Single-option auto-resolve suppressed for unmatched input**: when a required choice field has only one option but the user's input names someone else (e.g., "nudge tuvalu" when only Clara exists), the engine no longer silently auto-selects the only option. Instead, it shows a warning and lets the user choose manually.
+
+### Fixed
+
+- **Word-level choice extraction for dotted names**: `extractChoice()` now correctly handles "clara.chen" and "Clara Chen" matching the option label "Clara Chen". The `normalize()` helper lowercases and replaces `[._-]` with spaces, enabling two-phase matching (exact substring then word-level scoring).
+
+### Consumer impact
+
+- **§1 (warnings)**: warnings are non-blocking and render as amber pills on the ActionCard form. No action needed — existing skills benefit automatically. Consumers can access warnings via `engine.getSnapshot().warnings` or `activeAction.warnings` from the hook.
+- **§2 (SkillRegistry export)**: consumers can now import `SkillRegistry` from `@gametheory-school/skal/ui` and delete `as any` casts in client components.
+- **§3 (router scoring)**: no API change. Natural-language routing now matches more reliably when input contains field values. Existing skills benefit automatically.
+
 ## [0.6.0] — 2026-09-16
 
 ### Added

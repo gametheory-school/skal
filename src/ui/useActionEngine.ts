@@ -29,6 +29,7 @@ export interface UseActionEngineReturn {
   skill: EngineSnapshot['skill']
   fields: EngineSnapshot['fields']
   errors: EngineSnapshot['errors']
+  warnings: EngineSnapshot['warnings']
   allFieldSpecs: EngineSnapshot['allFieldSpecs']
   dispatching: EngineSnapshot['dispatching']
   preparing: EngineSnapshot['preparing']
@@ -123,6 +124,7 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
       optionalFields,
       questions: snapshot.skill?.questions ?? {},
       errors: snapshot.errors,
+      warnings: snapshot.warnings,
       currentFields: snapshot.fields,
       onSubmit: (fields) => engine.submitFields(fields),
       onSubmitText: (text) => engine.submitText(text),
@@ -137,6 +139,7 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
     skill: snapshot.skill,
     fields: snapshot.fields,
     errors: snapshot.errors,
+    warnings: snapshot.warnings,
     allFieldSpecs: snapshot.allFieldSpecs,
     dispatching: snapshot.dispatching,
     preparing: snapshot.preparing,

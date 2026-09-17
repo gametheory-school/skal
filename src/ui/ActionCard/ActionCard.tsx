@@ -24,6 +24,7 @@ export interface ActionCardProps {
   optionalFields: FieldSpec[]
   questions: Record<string, string>
   errors: Record<string, string>
+  warnings?: Record<string, string>
   currentFields: Record<string, unknown>
   onSubmit: (fields: Record<string, unknown>) => void
   onSubmitText: (text: string) => void
@@ -137,6 +138,16 @@ export function ActionCard(props: ActionCardProps) {
             </button>
           </div>
         </div>
+
+        {Object.entries(props.warnings ?? {}).map(([key, message]) => {
+          const field = [...props.requiredFields, ...props.optionalFields].find((spec) => spec.key === key)
+          if (field?.options?.some((option) => option.value === localFields[key])) return null
+          return (
+            <p key={key} role="status" className="mb-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {message}
+            </p>
+          )
+        })}
 
         {mode === 'form' ? (
           <>

@@ -35,8 +35,6 @@ An item is **pullable** when: it's in "Ready to pull," all `depends on` items ar
 
 | Item | Tag | Why now |
 |------|-----|---------|
-| P4. Unmatched choice extraction gives no feedback [Bug] | [Bug] | User says "nudge tuvalu" and gets silence instead of "tuvalu not found" — confusing UX on every skill with choice fields |
-| P3. SkillRegistry re-export from skal/ui [Chore] | [Chore] | Trivial; drops `as any` cast in consumer client components |
 | F3. Page context awareness [Feature] | [Feature] | Enables skill filtering by route + extraction disambiguation; foundational for suggestion pills (B5) |
 
 ### 2. Blocked
@@ -233,30 +231,6 @@ UX refinement, field types, developer experience.
   - Validation integrates with Zod schema
   - Unit tests
 
-### P3. SkillRegistry re-export from skal/ui [Chore]
-
-Consumers import `SkillRegistry` from the universal entry and cast with `as any` when using it in client components. Re-exporting from `skal/ui` drops the cast.
-
-- **depends on:** nothing
-- **blocks:** none
-- **Acceptance criteria:**
-  - `SkillRegistry` exported from `src/ui.ts`
-  - Consumer can drop `as any` cast
-  - Typecheck green
-
-### P4. Unmatched choice extraction gives no feedback [Bug]
-
-When a user types a name that doesn't match any choice option (e.g., "nudge tuvalu" when no coachee named Tuvalu exists), `extractChoice()` returns `undefined` and the skill opens its form asking the user to pick — but never says *why* it's asking. The user gets silence instead of "tuvalu not found." Fix: when choice extraction runs and no option matches, surface a warning message on the form (non-blocking — user can still pick manually).
-
-- **depends on:** nothing
-- **blocks:** none
-- **Acceptance criteria:**
-  - When `extractChoice()` returns undefined but the input contained apparent name/token tokens, engine surfaces a "no match for 'X'" warning
-  - Warning renders on the ActionCard form (non-blocking — form still usable)
-  - Warning clears when user selects a valid option or submits
-  - Does not block skill selection (form opens with warning, not error)
-  - Unit tests for match, no-match, and partial-match scenarios
-
 ---
 
 ## Grow
@@ -289,6 +263,7 @@ The TaskManager component needs a scheduling story for skills that fire on a cad
 
 | Item | Shipped | Notes |
 |------|---------|-------|
+| Unmatched choice warnings + SkillRegistry export | v0.6.3 (2026-09-17) | P4: amber warning pills for unmatched names; P3: SkillRegistry re-exported from skal/ui; router scoring robustness (overlap+coverage) |
 | Cancel button on forms | v0.6.0 (2026-09-16) | Secondary button next to Submit in capturing/clarifying; calls onReset |
 | Word-level choice extraction | v0.6.0 (2026-09-16) | normalize() helper, two-phase matching (exact then word-score); "clara" → "Clara Chen" |
 | Softer error styling | v0.6.0 (2026-09-16) | Pill style (bg-red-50 rounded) instead of raw red text |

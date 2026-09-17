@@ -759,6 +759,168 @@ describe('ActionEngine', () => {
     })
   })
 
+  describe('unmatched choice warnings', () => {
+    const options = [
+      { value: 'u-clara', label: 'Clara Chen' },
+      { value: 'u-miguel', label: 'Miguel Torres' },
+    ]
+    const nudge = (overrides?: Partial<SkillDefinition>) => makeSkill('coach.nudge', {
+      description: 'Nudge a coachee',
+      fieldSchema: z.object({ coachee: z.string().min(1), message: z.string().min(1) }),
+      questions: { coachee: 'Which coachee?', message: 'What message?' },
+      fieldMeta: { coachee: { inputType: 'choice', label: 'Coachee', options } },
+      ...overrides,
+    })
+
+    it('opens the form with a warning for an unknown name', async () => {
+      const { engine } = setup([nudge()])
+      expect(await engine.routeInput('nudge tuvalu')).toBe(true)
+      expect(engine.state.kind).toBe('clarifying')
+      expect(engine.getSnapshot().fields.coachee).toBeUndefined()
+      expect(engine.getSnapshot().warnings.coachee).toBe(
+        'No match for "nudge tuvalu" in Coachee. Please choose an option manually.',
+      )
+      expect(engine.activeAction.warnings).toEqual(engine.getSnapshot().warnings)
+    })
+
+    it.each(['nudge clara', 'nudge clara.chen', 'nudge Clara Chen'])('preserves matching for %s without warnings', async (input) => {
+      const { engine } = setup([nudge()])
+      expect(await engine.routeInput(input)).toBe(true)
+      expect(engine.getSnapshot().fields.coachee).toBe('u-clara')
+      expect(engine.getSnapshot().warnings).toEqual({})
+    })
+
+    it('does not warn for direct selection or intent-only input', async () => {
+      const { engine } = setup([nudge()])
+      await engine.selectSkill('coach.nudge')
+      expect(engine.getSnapshot().warnings).toEqual({})
+      await engine.routeInput('nudge a coachee')
+      expect(engine.getSnapshot().warnings).toEqual({})
+      engine.submitText('   !!!   ')
+      expect(engine.getSnapshot().warnings).toEqual({})
+    })
+
+    it('warns only after prepare resolves and uses its options', async () => {
+      let finishPrepare!: (meta: NonNullable<SkillDefinition['fieldMeta']>) => void
+      const skill = nudge({
+        fieldMeta: { coachee: { inputType: 'choice', label: 'Coachee' } },
+        prepare: () => new Promise((resolve) => { finishPrepare = resolve }),
+      })
+      const { engine } = setup([skill])
+      const routing = engine.routeInput('nudge tuvalu')
+      await vi.waitFor(() => expect(engine.getSnapshot().preparing).toBe(true))
+      expect(engine.getSnapshot().warnings).toEqual({})
+      finishPrepare({ coachee: { inputType: 'choice', label: 'Coachee', options } })
+      await routing
+      expect(engine.getSnapshot().warnings.coachee).toContain('tuvalu')
+    })
+
+    it('does not retain a static option removed by prepare', async () => {
+      const { engine } = setup([nudge({
+        prepare: async () => ({
+          coachee: { inputType: 'choice', label: 'Coachee', options: options.slice(1) },
+        }),
+      })])
+      await engine.routeInput('nudge clara')
+      expect(engine.getSnapshot().fields.coachee).toBeUndefined()
+      expect(engine.getSnapshot().warnings.coachee).toContain('clara')
+      expect(engine.getSnapshot().allFieldSpecs[0].autoResolved).not.toBe(true)
+    })
+
+    it('does not substitute a single option for an unmatched name', async () => {
+      const { engine } = setup([nudge({
+        fieldMeta: { coachee: { inputType: 'choice', label: 'Coachee', options: options.slice(0, 1) } },
+      })])
+      await engine.routeInput('nudge tuvalu')
+      expect(engine.getSnapshot().fields.coachee).toBeUndefined()
+      expect(engine.getSnapshot().allFieldSpecs[0].autoResolved).not.toBe(true)
+      expect(engine.getSnapshot().warnings.coachee).toContain('tuvalu')
+      await engine.routeInput('nudge a coachee')
+      expect(engine.getSnapshot().fields.coachee).toBe('u-clara')
+      expect(engine.getSnapshot().allFieldSpecs[0].autoResolved).toBe(true)
+    })
+
+    it('keeps empty-option choices as text without a no-match warning', async () => {
+      const { engine } = setup([nudge({
+        prepare: async () => ({ coachee: { inputType: 'choice', label: 'Coachee', options: [] } }),
+      })])
+      await engine.routeInput('nudge tuvalu')
+      expect(engine.getSnapshot().allFieldSpecs[0].inputType).toBe('text')
+      expect(engine.getSnapshot().warnings).toEqual({})
+    })
+
+    it('clears warnings on submission even when other fields are missing', async () => {
+      const { engine } = setup([nudge()])
+      await engine.routeInput('nudge tuvalu')
+      engine.submitFields({})
+      expect(engine.getSnapshot().warnings).toEqual({})
+      expect(engine.state.kind).toBe('clarifying')
+      engine.submitFields({ coachee: 'u-clara', message: 'Hello' })
+      expect(engine.state.kind).toBe('validated')
+      expect((await engine.dispatch()).type).toBe('instant')
+    })
+
+    it('supports warnings and recovery in text mode', async () => {
+      const { engine } = setup([nudge()])
+      await engine.selectSkill('coach.nudge')
+      engine.submitText('tuvalu')
+      expect(engine.getSnapshot().warnings.coachee).toContain('tuvalu')
+      engine.submitText('clara')
+      expect(engine.getSnapshot().warnings).toEqual({})
+      expect(engine.getSnapshot().fields.coachee).toBe('u-clara')
+    })
+
+    it('clears warnings on reset and direct selection without reusing old input', async () => {
+      const { engine } = setup([nudge()])
+      await engine.routeInput('nudge tuvalu')
+      engine.reset()
+      expect(engine.getSnapshot().warnings).toEqual({})
+      await engine.routeInput('nudge tuvalu')
+      await engine.selectSkill('coach.nudge')
+      expect(engine.getSnapshot().warnings).toEqual({})
+      await engine.routeInput('unmatched tuvalu')
+      await engine.selectSkill('coach.nudge')
+      expect(engine.getSnapshot().warnings).toEqual({})
+    })
+
+    it('preserves current input when routing replaces an active form', async () => {
+      const { engine } = setup([nudge()])
+      await engine.routeInput('nudge clara')
+      await engine.routeInput('nudge tuvalu')
+      expect(engine.getSnapshot().fields.coachee).toBeUndefined()
+      expect(engine.getSnapshot().warnings.coachee).toContain('tuvalu')
+      await engine.routeInput('nudge miguel')
+      expect(engine.getSnapshot().fields.coachee).toBe('u-miguel')
+      expect(engine.getSnapshot().warnings).toEqual({})
+    })
+
+    it('does not warn for another missing choice when input only names a matched choice', async () => {
+      const { engine } = setup([nudge({
+        fieldSchema: z.object({ coachee: z.string(), category: z.string() }),
+        questions: { coachee: 'Which coachee?', category: 'Which category?' },
+        fieldMeta: {
+          coachee: { inputType: 'choice', label: 'Coachee', options },
+          category: { inputType: 'choice', label: 'Category', options: [
+            { value: 'feedback', label: 'Feedback' }, { value: 'reminder', label: 'Reminder' },
+          ] },
+        },
+      })])
+      await engine.routeInput('nudge clara')
+      expect(engine.getSnapshot().warnings).toEqual({})
+      expect(engine.getSnapshot().fields.category).toBeUndefined()
+    })
+
+    it('lets users resolve or skip an unmatched optional choice', async () => {
+      const { engine } = setup([nudge({ fieldSchema: z.object({ coachee: z.string().optional() }) })])
+      await engine.routeInput('nudge tuvalu')
+      expect(engine.state.kind).toBe('clarifying')
+      expect(engine.getSnapshot().warnings.coachee).toContain('tuvalu')
+      engine.submitFields({})
+      expect(engine.state.kind).toBe('validated')
+      expect(engine.getSnapshot().warnings).toEqual({})
+    })
+  })
+
   // ─── Issue 3: Auto-resolve single-option choice fields ─────────
 
   describe('auto-resolve choice fields', () => {

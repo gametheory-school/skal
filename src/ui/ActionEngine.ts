@@ -28,6 +28,7 @@ export interface ActionCardProps {
   optionalFields: FieldSpec[]
   questions: Record<string, string>
   errors: Record<string, string>
+  warnings?: Record<string, string>
   currentFields: Record<string, unknown>
   onSubmit: (fields: Record<string, unknown>) => void
   onSubmitText: (text: string) => void
@@ -43,6 +44,7 @@ export interface EngineSnapshot {
   skill: SkillDefinition | undefined
   fields: Record<string, unknown>
   errors: Record<string, string>
+  warnings: Record<string, string>
   allFieldSpecs: FieldSpec[]
   dispatching: boolean
   preparing: boolean
@@ -67,6 +69,7 @@ export class ActionEngine {
   private _activeSkillId: string | null = null
   private _fields: Record<string, unknown> = {}
   private _errors: Record<string, string> = {}
+  private _warnings: Record<string, string> = {}
   private _allFieldSpecs: FieldSpec[] = []
   private _dispatching = false
   private _routing = false
@@ -74,7 +77,6 @@ export class ActionEngine {
   private _pendingReset = false
   private _routeQueue: Promise<unknown> = Promise.resolve()
   private _resolvedFieldMeta: Record<string, FieldMetaInput> | undefined = undefined
-  private _rawInput: string = ''
 
   private listeners = new Set<Listener>()
 
@@ -111,6 +113,7 @@ export class ActionEngine {
       skill: this.activeSkill,
       fields: this._fields,
       errors: this._errors,
+      warnings: this._warnings,
       allFieldSpecs: this._allFieldSpecs,
       dispatching: this._dispatching,
       preparing: this._preparing,
@@ -138,6 +141,14 @@ export class ActionEngine {
    * Calls skill.prepare() if defined to fetch dynamic field metadata.
    */
   async selectSkill(skillId: string, extractedFields?: Record<string, unknown>): Promise<boolean> {
+    return this.selectSkillWithInput(skillId, extractedFields)
+  }
+
+  private async selectSkillWithInput(
+    skillId: string,
+    extractedFields?: Record<string, unknown>,
+    rawInput = '',
+  ): Promise<boolean> {
     const skill = this.registry.get(skillId)
     if (!skill) return false
 
@@ -177,28 +188,32 @@ export class ActionEngine {
 
       this._allFieldSpecs = buildFieldSpecs(skill.fieldSchema, skill.questions, resolvedMeta)
 
-      // Auto-resolve single-option choice fields.
-      // Zero-option choices already downgraded to text by buildFieldSpecs.
-      for (const spec of this._allFieldSpecs) {
-        if (spec.inputType === 'choice' && spec.required) {
-          const options = resolvedMeta?.[spec.key]?.options
-          if (options?.length === 1 && (extractedFields?.[spec.key] ?? undefined) === undefined) {
-            this._fields[spec.key] = options[0].value
-            spec.autoResolved = true
+      // Prepared options are authoritative; discard the router's pre-prepare choice guesses.
+      if (rawInput) {
+        extractedFields = { ...extractedFields }
+        for (const spec of this._allFieldSpecs) {
+          if (resolvedMeta?.[spec.key]?.inputType === 'choice') {
+            delete extractedFields[spec.key]
           }
         }
-      }
-
-      // Re-extract from raw input now that prepare() has populated options.
-      // The router's initial extraction ran against empty option lists for
-      // dynamic choice fields; this pass catches them.
-      if (this._rawInput) {
-        const reExtraction = extractFields(this._rawInput, this._allFieldSpecs)
+        const reExtraction = extractFields(rawInput, this._allFieldSpecs)
         extractedFields = { ...extractedFields, ...reExtraction.extracted }
       }
 
-      // Store extracted fields.
       this._fields = { ...this._fields, ...extractedFields }
+      this._warnings = this.choiceWarnings(rawInput)
+
+      // Never silently substitute the only option for an unmatched request.
+      for (const spec of this._allFieldSpecs) {
+        if (
+          spec.inputType === 'choice' && spec.required &&
+          spec.options?.length === 1 && this._fields[spec.key] == null &&
+          !this._warnings[spec.key]
+        ) {
+          this._fields[spec.key] = spec.options[0].value
+          spec.autoResolved = true
+        }
+      }
 
       // Send SKILL_SELECTED to SM.
       this.sm.send({ type: 'SKILL_SELECTED', skillId, extractedFields })
@@ -232,6 +247,7 @@ export class ActionEngine {
     try {
       // Merge fields.
       this._fields = { ...this._fields, ...fields }
+      this._warnings = {}
 
       // Validate.
       const result = validateFields(skill.fieldSchema, this._fields, skill.questions, this._resolvedFieldMeta)
@@ -280,20 +296,23 @@ export class ActionEngine {
 
       // Merge extracted values.
       this._fields = { ...this._fields, ...extraction.extracted }
+      this._warnings = this.choiceWarnings(text)
 
       // Validate.
       const result = validateFields(skill.fieldSchema, this._fields, skill.questions, this._resolvedFieldMeta)
+      const warningFields = this._allFieldSpecs.filter((field) => this._warnings[field.key])
+      const missingFields = result.valid ? warningFields : result.missingFields
 
-      if (result.valid) {
+      if (result.valid && warningFields.length === 0) {
         this._errors = {}
         this.sm.send({ type: 'VALIDATED', fields: this._fields })
       } else {
         this._errors = result.errors
         if (this._state.kind === 'capturing') {
-          this.sm.send({ type: 'GAPS_DETECTED', missingFields: result.missingFields })
+          this.sm.send({ type: 'GAPS_DETECTED', missingFields })
         } else {
           this.sm.send({ type: 'USER_REPLIED', fields: this._fields })
-          this.sm.send({ type: 'GAPS_DETECTED', missingFields: result.missingFields })
+          this.sm.send({ type: 'GAPS_DETECTED', missingFields })
         }
       }
 
@@ -444,11 +463,10 @@ export class ActionEngine {
       try {
         if (!this.router) return false
 
-        this._rawInput = text
         const result = await this.router.classify(text)
         if (!result) return false
 
-        return await this.selectSkill(result.skillId, result.extractedFields)
+        return await this.selectSkillWithInput(result.skillId, result.extractedFields, text)
       } catch {
         return false
       } finally {
@@ -475,6 +493,7 @@ export class ActionEngine {
       optionalFields,
       questions: skill?.questions ?? {},
       errors: this._errors,
+      warnings: this._warnings,
       currentFields: this._fields,
       onSubmit: (fields) => this.submitFields(fields),
       onSubmitText: (text) => this.submitText(text),
@@ -486,18 +505,50 @@ export class ActionEngine {
 
   // ─── Private ─────────────────────────────────────────────────
 
+  private choiceWarnings(text: string): Record<string, string> {
+    const skill = this.activeSkill
+    if (!skill || !text.trim()) return {}
+
+    const words = (value: string) => value.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []
+    const knownWords = new Set(words([
+      skill.id,
+      skill.description ?? '',
+      ...Object.values(skill.questions),
+      ...this._allFieldSpecs.flatMap((field) => {
+        const value = this._fields[field.key]
+        if (value == null || value === '') return []
+        const option = field.options?.find((item) => item.value === value)
+        return [String(value), option?.label ?? '']
+      }),
+    ].join(' ')))
+    // Intent-only input or values already assigned to another field are not failed choices.
+    if (!words(text).some((word) => !knownWords.has(word))) return {}
+
+    const warnings: Record<string, string> = {}
+    for (const field of this._allFieldSpecs) {
+      if (
+        field.inputType === 'choice' && field.options?.length &&
+        (this._fields[field.key] == null || this._fields[field.key] === '')
+      ) {
+        warnings[field.key] = `No match for "${text.trim()}" in ${field.label}. Please choose an option manually.`
+      }
+    }
+    return warnings
+  }
+
   private validateAndTransition(): void {
     const skill = this.activeSkill
     if (!skill) return
 
     const result = validateFields(skill.fieldSchema, this._fields, skill.questions, this._resolvedFieldMeta)
+    const warningFields = this._allFieldSpecs.filter((field) => this._warnings[field.key])
 
-    if (result.valid) {
+    if (result.valid && warningFields.length === 0) {
       this._errors = {}
       this.sm.send({ type: 'VALIDATED', fields: this._fields })
     } else {
       this._errors = result.errors
-      this.sm.send({ type: 'GAPS_DETECTED', missingFields: result.missingFields })
+      this.sm.send({ type: 'GAPS_DETECTED', missingFields: result.valid ? warningFields : result.missingFields })
     }
 
     // Sync internal state with SM.
@@ -510,11 +561,11 @@ export class ActionEngine {
     this._activeSkillId = null
     this._fields = {}
     this._errors = {}
+    this._warnings = {}
     this._allFieldSpecs = []
     this._resolvedFieldMeta = undefined
     this._preparing = false
     this._pendingReset = false
-    this._rawInput = ''
   }
 
   private notify(): void {

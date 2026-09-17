@@ -35,7 +35,7 @@ export class SkillRouter {
     private readonly llm?: ExtractionLLM,
     private readonly options?: RouterOptions,
   ) {
-    this.threshold = options?.threshold ?? 0.3
+    this.threshold = options?.threshold ?? 0.27
     this.ambiguityGap = options?.ambiguityGap ?? 0.1
   }
 
@@ -113,10 +113,11 @@ export class SkillRouter {
     const questionTokens = Object.values(skill.questions)
       .flatMap((q) => tokenize(q))
 
-    // Weighted overlap.
-    const descOverlap = overlapRatio(tokens, descriptionTokens)
-    const idOverlap = overlapRatio(tokens, idTokens)
-    const questionOverlap = overlapRatio(tokens, questionTokens)
+    // Weighted overlap: use max of overlap (input→corpus) and coverage (corpus→input)
+    // to be robust to extra words in the input (e.g., field values).
+    const descOverlap = matchScore(tokens, descriptionTokens)
+    const idOverlap = matchScore(tokens, idTokens)
+    const questionOverlap = matchScore(tokens, questionTokens)
 
     // Weights: description > id > questions.
     // When no description, id gets the description weight.
@@ -204,6 +205,26 @@ function tokenize(text: string): string[] {
     .replace(/[^\w\s]/g, ' ')
     .split(/\s+/)
     .filter((t) => t.length > 0)
+}
+
+/**
+ * Compute match score between input and corpus tokens.
+ * Uses a weighted combination of:
+ * - Overlap: ratio of input tokens found in corpus
+ * - Coverage: ratio of corpus tokens found in input
+ * The weighting (0.8 overlap + 0.2 coverage) provides some robustness to extra
+ * words in the input (e.g., field values) while still prioritizing overlap to
+ * prevent false positives.
+ */
+function matchScore(inputTokens: string[], corpusTokens: string[]): number {
+  if (inputTokens.length === 0 || corpusTokens.length === 0) return 0
+  const inputSet = new Set(inputTokens)
+  const corpusSet = new Set(corpusTokens)
+
+  const overlap = inputTokens.filter((t) => corpusSet.has(t)).length / inputTokens.length
+  const coverage = corpusTokens.filter((t) => inputSet.has(t)).length / corpusTokens.length
+
+  return 0.8 * overlap + 0.2 * coverage
 }
 
 /**
