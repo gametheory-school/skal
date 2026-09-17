@@ -35,19 +35,21 @@ An item is **pullable** when: it's in "Ready to pull," all `depends on` items ar
 
 | Item | Tag | Why now |
 |------|-----|---------|
-| *(none — backlog seeding)* | | |
+| P4. Unmatched choice extraction gives no feedback [Bug] | [Bug] | User says "nudge tuvalu" and gets silence instead of "tuvalu not found" — confusing UX on every skill with choice fields |
+| P3. SkillRegistry re-export from skal/ui [Chore] | [Chore] | Trivial; drops `as any` cast in consumer client components |
+| F3. Page context awareness [Feature] | [Feature] | Enables skill filtering by route + extraction disambiguation; foundational for suggestion pills (B5) |
 
 ### 2. Blocked
 
 | Item | Tag | Blocker |
 |------|-----|---------|
-| *(none)* | | |
+| B4. Voice input (STT) [Feature] | [Feature] | Depends on axon Deepgram STT surface being available as a reusable transport |
 
 ### 3. Phantoms converted
 
 | Phantom | Real item | Why converted |
 |---------|-----------|---------------|
-| *(none yet)* | | |
+| SkillRegistry re-export from skal/ui | P3 | Consumer friction: `as any` cast in every client component |
 
 ### 4. Phantoms staying external
 
@@ -57,13 +59,12 @@ An item is **pullable** when: it's in "Ready to pull," all `depends on` items ar
 | prepare pre-filled values | No consumer needs it yet; trigger = session.start model default |
 | Choice search/filter | No consumer has hit the ~30-option threshold |
 | Richer field types (multi-select, file) | No consumer yet |
-| SkillRegistry re-export from skal/ui | Cosmetic; no functional gap |
 
 ### 5. Spikes needing design
 
 | Item | What's missing | Would unblock |
 |------|---------------|---------------|
-| B1. setActor() lifecycle | Decision: reset-to-idle on actor change vs provider-based actor reads; in-flight action semantics | Crucible can delete `key={mode}` remount hack |
+| F2. TaskManager data source | Decision: in-memory only (session-scoped) vs pluggable store interface (axon execution ledger) | TaskManager component becomes functional |
 
 ---
 
@@ -75,14 +76,18 @@ Core engine infrastructure, types, state machine primitives.
 
 `agents.md` design decision #2 states "deterministic-before-LLM" — field extraction tries regex/parsing first, LLM is the fallback. The interface contract for the LLM fallback is not yet defined. Consumer provides the LLM transport; skal defines the interface. Needed when deterministic extraction misses too often in production.
 
+**Decision (2026-09-17): async fallback.** `ExtractionFallback.extract(text, specs): Promise<Record<string, unknown> | null>`. `routeInput` is already async; add a loading state to Composer while fallback runs. Consumer provides async LLM transport; skal awaits with a 5-second timeout (returns null on timeout, falls through to manual clarify).
+
 - **depends on:** nothing
 - **blocks:** none
 - **Acceptance criteria:**
-  - `ExtractionFallback` interface defined (input: raw text + field specs; output: extracted fields or null)
+  - `ExtractionFallback` interface defined with async `extract(text, specs): Promise<Record<string, unknown> | null>`
   - Interface exported from universal entry (`src/index.ts`)
   - `ActionEngine` accepts optional fallback in constructor config
   - Extraction pipeline calls fallback when deterministic returns no matches
-  - Unit tests with mock fallback
+  - 5-second timeout on fallback call (returns null on timeout)
+  - Loading state surfaced on `EngineSnapshot` while fallback runs
+  - Unit tests with mock fallback (success, null, timeout)
   - Consumer integration example in README
 
 ### F2. TaskManager data source interface [Spike]
@@ -98,6 +103,23 @@ Core engine infrastructure, types, state machine primitives.
   - TaskManager component consumes the data source
   - Unit tests
 
+### F3. Page context awareness [Feature]
+
+Skal has no concept of which page/route the user is viewing. This limits intent disambiguation and prevents route-scoped skill filtering. Adding page context enables: (a) skill filtering — only some skills available on certain pages, (b) extraction disambiguation — page context helps resolve ambiguous inputs.
+
+**API design:** `setPageContext(route)` method on engine + hook. Each skill gets optional `routes?: string[]` in its definition. Consumer passes `matchRoutes?: (skillRoutes: string[], currentRoute: string) => boolean` for custom matching (default: prefix match). `canSelect()` returns false for non-matching skills; `classify()` boosts matching skills when ambiguous.
+
+- **depends on:** nothing
+- **blocks:** B5 (suggestion pills benefit from page context)
+- **Acceptance criteria:**
+  - `setPageContext(route: string)` method on ActionEngine and useActionEngine hook
+  - `SkillDefinition` extended with optional `routes?: string[]`
+  - `ActionEngineConfig` accepts optional `matchRoutes` function
+  - `canSelect()` returns false for skills whose routes don't match current page
+  - `classify()` boosts skills matching current route on ambiguous input
+  - `EngineSnapshot` includes `currentRoute` for consumer UI
+  - Unit tests for filtering, disambiguation, and default prefix matching
+
 ---
 
 ## Build
@@ -106,17 +128,19 @@ Feature implementation. New capabilities the engine renders or orchestrates.
 
 ### B1. Actor mutability — setActor() [Spike]
 
-**Open thread.** `ActionEngine`'s constructor takes `private readonly actor: ActorContext` — immutable for the engine's lifetime. When the actor changes (e.g. mode switch in Crucible), consumers remount the entire shell via `key={mode}`. Proposed: a `setActor(actor)` method. **Design question:** what happens to an in-flight action when the actor changes? Reset-to-idle is probably correct. Alternative: read actor at check time via a provider.
+**Open thread.** `ActionEngine`'s constructor takes `private readonly actor: ActorContext` — immutable for the engine's lifetime. When the actor changes (e.g. mode switch in Crucible), consumers remount the entire shell via `key={mode}`. Proposed: a `setActor(actor)` method.
+
+**Decision (2026-09-17): reset-to-idle.** `setActor(newActor)` resets engine to idle, clears active skill, re-gates palette. Simple, predictable, no stale state. Losing form data on mode switch is acceptable — the user is changing context anyway. Crucible already does this via `key={mode}` remount; this makes it explicit.
 
 - **depends on:** nothing
 - **blocks:** none
-- **Resolution criteria:** decision on lifecycle semantics (reset-to-idle vs provider), implementation, migration path for consumers using `key={mode}`
 - **Acceptance criteria:**
-  - `setActor(actor)` method on ActionEngine
-  - In-flight action resets to idle on actor change
-  - Permission re-check against new actor
+  - `setActor(actor)` method on ActionEngine and useActionEngine hook
+  - Resets engine to idle state (clears active skill, partial fields)
+  - Re-runs permission gate against new actor for all skills
+  - `EngineSnapshot` reflects new actor context
   - `key={mode}` hack deletable from Crucible SkalShellWrapper
-  - Unit tests for lifecycle behavior
+  - Unit tests for reset behavior, gate re-check, and state clearing
 
 ### B2. redirect HandlerResult variant [Feature]
 
@@ -141,6 +165,42 @@ Feature implementation. New capabilities the engine renders or orchestrates.
   - Engine merges prefill into partialFields after prepare
   - Prefilled fields skip the clarify loop if all required fields are covered
   - Unit tests
+
+### B4. Voice input (STT) via Deepgram [Feature]
+
+Add a microphone button to the Composer that captures audio via axon's Deepgram STT integration and feeds the transcribed text into `routeInput()` — same as if the user typed it. Not full Notetaker (no review/edit loop); just voice → text → route.
+
+**Design decisions (2026-09-17):**
+- **Provider:** axon's Deepgram integration (cross-browser, already in axon)
+- **Scope:** mic button on Composer → STT → transcribed text feeds routeInput()
+- **Mic UX: toggle** — click mic → recording starts (red pulse). Click again → stops, transcribes, text appears in Composer. 30-second max duration auto-stop safety.
+- **No partial transcripts for v1** — recording state shows red pulse, text appears when done. User reviews in Composer before submitting. Partials can be added later.
+
+- **depends on:** axon Deepgram STT surface available as reusable transport (axon B1 Notetaker)
+- **blocks:** none
+- **Acceptance criteria:**
+  - `STTProvider` interface defined (start/stop recording, final text callback)
+  - Mic button on Composer component (toggle: click to start, click to stop)
+  - Recording state indicator: red pulse while recording
+  - 30-second max duration auto-stop
+  - Transcribed text placed into Composer textarea (user reviews before submitting)
+  - Consumer provides STT transport (axon Deepgram adapter)
+  - Unit tests with mock STT provider
+
+### B5. Suggestion pills — auto-derived quick actions [Feature]
+
+Seed the Composer with clickable suggestion pills before the user types. Pills are context-dependent quick actions derived automatically from registered skill titles/questions. Clicking a pill feeds its text into `routeInput()` (same as typing it). Integrates with F3 (page context) to filter suggestions by current route.
+
+- **depends on:** F3 (page context awareness — pills filter by current route)
+- **blocks:** none
+- **Acceptance criteria:**
+  - Pills render above/below Composer when idle (no active skill)
+  - Pills auto-derived from skill definitions (title or question text)
+  - Pills filtered by page context (F3) when `routes` declared on skills
+  - Clicking a pill calls `routeInput(pillText)`
+  - Pills hidden when a skill is active (capturing/clarifying/validated state)
+  - Consumer can override/supplement auto-derived pills via prop
+  - Unit tests for derivation, filtering, and click behavior
 
 ---
 
@@ -175,7 +235,7 @@ UX refinement, field types, developer experience.
 
 ### P3. SkillRegistry re-export from skal/ui [Chore]
 
-**External phantom.** Consumers import `SkillRegistry` from the universal entry and cast with `as any` when using it in client components. Re-exporting from `skal/ui` drops the cast.
+Consumers import `SkillRegistry` from the universal entry and cast with `as any` when using it in client components. Re-exporting from `skal/ui` drops the cast.
 
 - **depends on:** nothing
 - **blocks:** none
@@ -183,6 +243,19 @@ UX refinement, field types, developer experience.
   - `SkillRegistry` exported from `src/ui.ts`
   - Consumer can drop `as any` cast
   - Typecheck green
+
+### P4. Unmatched choice extraction gives no feedback [Bug]
+
+When a user types a name that doesn't match any choice option (e.g., "nudge tuvalu" when no coachee named Tuvalu exists), `extractChoice()` returns `undefined` and the skill opens its form asking the user to pick — but never says *why* it's asking. The user gets silence instead of "tuvalu not found." Fix: when choice extraction runs and no option matches, surface a warning message on the form (non-blocking — user can still pick manually).
+
+- **depends on:** nothing
+- **blocks:** none
+- **Acceptance criteria:**
+  - When `extractChoice()` returns undefined but the input contained apparent name/token tokens, engine surfaces a "no match for 'X'" warning
+  - Warning renders on the ActionCard form (non-blocking — form still usable)
+  - Warning clears when user selects a valid option or submits
+  - Does not block skill selection (form opens with warning, not error)
+  - Unit tests for match, no-match, and partial-match scenarios
 
 ---
 
@@ -239,13 +312,14 @@ The TaskManager component needs a scheduling story for skills that fire on a cad
 
 ```
 Foundation:
-  (no internal deps yet)
+  F3 (page context) ──→ B5 (suggestion pills filter by route)
 
 Build:
-  (no internal deps yet)
+  B4 (voice input) depends on axon B1 (Notetaker/Deepgram)
+  F3 (page context) ──→ B5 (suggestion pills)
 
 Polish:
-  (no internal deps yet)
+  (no internal deps)
 
 Grow:
   F2 (TaskManager data source) ──→ G2 (scheduling integration)
@@ -255,8 +329,11 @@ Grow:
 
 ```
 F1 (LLM fallback) ──→ improves extraction accuracy across all skills
+F3 (page context) ──→ B5 (suggestion pills filter by route)
 B1 (setActor) ──→ consumer UX (delete key={mode} hack)
+B4 (voice input) ──→ depends on axon Deepgram STT
 F2 (TaskManager data) ──→ G2 (scheduling)
+P4 (unmatched feedback) ──→ improves extraction UX across all choice skills
 ```
 
 ---
@@ -269,6 +346,7 @@ F2 (TaskManager data) ──→ G2 (scheduling)
 | prepare pre-filled values | External | No consumer yet; trigger = session.start model default |
 | Choice search/filter | External | No consumer past ~30 options yet |
 | Richer field types | External | No consumer request yet |
-| SkillRegistry re-export | External | Cosmetic; tracked as P3 |
+| SkillRegistry re-export | ~~Phantom~~ → **P3** | Converted: consumer friction with `as any` cast |
+| axon B1 (Notetaker/Deepgram STT) | External | B4 voice input depends on axon's Deepgram surface being reusable |
 | axon F21 (execution ledger) | External | TaskManager data source could use axon's ledger when it ships |
 | axon F22 (user-created schedules) | External | Scheduling integration depends on axon's schedule model |

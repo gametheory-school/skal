@@ -6,13 +6,6 @@
 
 ## OPEN
 
-### Actor mutability after engine construction — setActor() lifecycle
-**Status:** open — needs design decision
-**Opened:** 2026-09-16
-**Backlog:** B5 (Build)
-`ActionEngine`'s constructor takes `private readonly actor: ActorContext` — immutable for the engine's lifetime. When the actor changes (e.g. mode switch in Crucible), consumers must remount the entire shell via `key={mode}` to get a fresh engine. Proposed fix: a `setActor(actor)` method. **Open design question:** what happens to an in-flight action when the actor changes underneath? Reset-to-idle is probably correct, but the lifecycle semantics deserve a decision before implementation. Alternative: read the actor at check time via a provider instead of storing it.
-**Current workaround:** Crucible's `SkalShellWrapper` uses `key={mode}` remount.
-
 ### HandlerResult `redirect` type — first-class vs convention
 **Status:** parked
 **Opened:** 2026-09-16
@@ -61,3 +54,8 @@ Consumers currently import `SkillRegistry` from the universal entry and cast wit
 **Status:** resolved 2026-09-16 — fixed in v0.5.0
 **Backlog:** Done (archive)
 Choice fields with empty or undefined options downgrade to `inputType: 'text'` at spec-build. The `'No options available'` error and `_fieldErrors`/`_mergedErrors` machinery removed. Required zero-option fields surface the standard Zod missing-field error after submit.
+
+### Actor mutability after engine construction — setActor() lifecycle
+**Status:** resolved 2026-09-17 — decision: reset-to-idle
+**Backlog:** B1 (Build)
+`setActor(newActor)` resets engine to idle, clears active skill, re-gates palette. Simple, predictable, no stale state. Losing form data on mode switch is acceptable — the user is changing context anyway. Crucible already does this via `key={mode}` remount; this makes it explicit.
