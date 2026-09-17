@@ -221,9 +221,17 @@ export function ActionCard(props: ActionCardProps) {
               disabled={false}
               initialValue={savedTextRef.current}
             />
-            <p className="mt-2 text-xs text-gray-400">
-              Or switch to form mode to fill fields individually
-            </p>
+            <div className="mt-2 flex items-center justify-between">
+              <button
+                onClick={props.onReset}
+                className="rounded px-3 py-1 text-xs text-gray-500 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+              <p className="text-xs text-gray-400">
+                Or switch to form mode to fill fields individually
+              </p>
+            </div>
           </>
         )}
       </div>
@@ -261,12 +269,20 @@ export function ActionCard(props: ActionCardProps) {
             </div>
           ))}
         </dl>
-        <button
-          onClick={props.onDispatch}
-          className="w-full rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          Execute
-        </button>
+        <div className="mt-2 flex gap-2">
+          <button
+            onClick={props.onReset}
+            className="flex-1 rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={props.onDispatch}
+            className="flex-1 rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            Execute
+          </button>
+        </div>
         {skill?.cancellable === false && (
           <p className="mt-1 text-center text-xs text-gray-400">
             This action cannot be stopped once started

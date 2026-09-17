@@ -74,6 +74,7 @@ export class ActionEngine {
   private _pendingReset = false
   private _routeQueue: Promise<unknown> = Promise.resolve()
   private _resolvedFieldMeta: Record<string, FieldMetaInput> | undefined = undefined
+  private _rawInput: string = ''
 
   private listeners = new Set<Listener>()
 
@@ -186,6 +187,14 @@ export class ActionEngine {
             spec.autoResolved = true
           }
         }
+      }
+
+      // Re-extract from raw input now that prepare() has populated options.
+      // The router's initial extraction ran against empty option lists for
+      // dynamic choice fields; this pass catches them.
+      if (this._rawInput) {
+        const reExtraction = extractFields(this._rawInput, this._allFieldSpecs)
+        extractedFields = { ...extractedFields, ...reExtraction.extracted }
       }
 
       // Store extracted fields.
@@ -435,6 +444,7 @@ export class ActionEngine {
       try {
         if (!this.router) return false
 
+        this._rawInput = text
         const result = await this.router.classify(text)
         if (!result) return false
 
@@ -504,6 +514,7 @@ export class ActionEngine {
     this._resolvedFieldMeta = undefined
     this._preparing = false
     this._pendingReset = false
+    this._rawInput = ''
   }
 
   private notify(): void {

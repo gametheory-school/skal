@@ -91,7 +91,7 @@ describe('SkillRouter', () => {
       )
 
       const router = new SkillRouter(registry, userActor)
-      const result = await router.classify('journal')
+      const result = await router.classify('new journal')
 
       expect(result).not.toBeNull()
       expect(result!.skillId).toBe('journal.entry')
@@ -125,7 +125,7 @@ describe('SkillRouter', () => {
 
       const llm = mockLLM('journal.entry')
       const router = new SkillRouter(registry, userActor, llm)
-      const result = await router.classify('journal')
+      const result = await router.classify('my journal')
 
       expect(result).not.toBeNull()
       expect(result!.skillId).toBe('journal.entry')
