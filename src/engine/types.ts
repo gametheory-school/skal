@@ -82,6 +82,8 @@ export interface ActorContext {
 
 export interface PermissionGate {
   can(actor: ActorContext, actionId: string): Promise<boolean>
+  /** Optional: return a human-readable reason when can() returns false. */
+  denyMessage?(actor: ActorContext, actionId: string): Promise<string>
 }
 
 // ─── Route Matching ───────────────────────────────────────────────

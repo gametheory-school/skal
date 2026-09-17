@@ -239,9 +239,12 @@ export class ActionEngine {
       const allowed = await checkAtCompose(this.permissionGate, this.actor, skillId)
       if (!allowed) {
         this._activeSkillId = skillId
+        const message = this.permissionGate.denyMessage
+          ? await this.permissionGate.denyMessage(this.actor, skillId)
+          : `Permission denied: ${this.actor.userId} cannot execute "${skillId}"`
         this.sm.send({
           type: 'SELECTION_DENIED',
-          message: `Permission denied: ${this.actor.userId} cannot execute "${skillId}"`,
+          message,
         })
         this.notify()
         return false
@@ -260,6 +263,19 @@ export class ActionEngine {
           this._preparing = false
         }
       }
+
+      // Defensive merge: static fieldMeta fills gaps where prepare()
+      // returned incomplete metadata (e.g. missing inputType/label).
+      if (skill.fieldMeta && resolvedMeta) {
+        for (const [key, staticMeta] of Object.entries(skill.fieldMeta)) {
+          if (!resolvedMeta[key]) {
+            resolvedMeta[key] = staticMeta
+          } else if (!resolvedMeta[key].inputType) {
+            resolvedMeta[key] = { ...staticMeta, ...resolvedMeta[key] }
+          }
+        }
+      }
+
       this._resolvedFieldMeta = resolvedMeta
 
       this._allFieldSpecs = buildFieldSpecs(skill.fieldSchema, skill.questions, resolvedMeta)

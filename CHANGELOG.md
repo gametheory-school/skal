@@ -3,6 +3,21 @@
 All notable changes to `@gametheory-school/skal` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com); versioning follows [semver](https://semver.org).
 
+## [0.8.1] — 2026-09-17
+
+### Fixed
+
+- **Choice field rendering with incomplete prepare() output**: when a skill's `prepare()` hook returned field metadata missing `inputType` (e.g. only providing `options` and `label`), the engine would downgrade the field to `inputType: 'text'` instead of preserving the `choice` type from the static `fieldMeta`. The engine now defensively merges static `fieldMeta` underneath `prepare()`'s result — missing `inputType` or entirely missing field entries are filled from the skill's static definition. This prevents choice fields from rendering as plain text inputs when consumers spread incomplete metadata in `prepare()`.
+
+### Added
+
+- **Custom permission denied messages**: `PermissionGate` now supports an optional `denyMessage(actor, actionId): Promise<string>` method. When `can()` returns false, the engine calls `denyMessage()` if defined to get a human-readable reason (e.g. "You need admin role to create a journal entry"). Falls back to the previous default message (`Permission denied: {userId} cannot execute "{actionId}"`) when `denyMessage` is not implemented. Fully backwards-compatible — existing gates that only implement `can()` are unaffected.
+
+### Consumer impact
+
+- **Non-breaking**: existing consumers unaffected. The defensive merge only fills gaps — `prepare()` results that include `inputType` are preserved as-is.
+- **New optional method**: `PermissionGate.denyMessage?(actor, actionId): Promise<string>`. Implement to provide custom error messages when permission is denied.
+
 ## [0.8.0] — 2026-09-17
 
 ### Added

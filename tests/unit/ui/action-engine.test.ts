@@ -187,6 +187,41 @@ describe('ActionEngine', () => {
       expect(result).toBe(false)
       expect(engine.state.kind).toBe('failed')
     })
+
+    it('uses custom deny message from gate when provided', async () => {
+      const gate: PermissionGate = {
+        can: async () => false,
+        denyMessage: async (_actor, actionId) =>
+          `You need admin role to execute ${actionId}`,
+      }
+      const skill = makeSkill('journal.entry')
+      const { engine } = setup([skill], gate)
+
+      await engine.selectSkill('journal.entry')
+
+      expect(engine.state.kind).toBe('failed')
+      if (engine.state.kind === 'failed') {
+        expect(engine.state.error).toBe(
+          'You need admin role to execute journal.entry',
+        )
+      }
+    })
+
+    it('falls back to default message when denyMessage is not defined', async () => {
+      const gate: PermissionGate = {
+        can: async () => false,
+      }
+      const skill = makeSkill('journal.entry')
+      const { engine } = setup([skill], gate)
+
+      await engine.selectSkill('journal.entry')
+
+      if (engine.state.kind === 'failed') {
+        expect(engine.state.error).toBe(
+          'Permission denied: u1 cannot execute "journal.entry"',
+        )
+      }
+    })
   })
 
   // ─── canSelect ───────────────────────────────────────────────
@@ -717,6 +752,60 @@ describe('ActionEngine', () => {
       // Submit with a valid category value.
       engine.submitFields({ title: 'Test', category: 'work' })
       expect(engine.state.kind).toBe('validated')
+    })
+
+    it('merges static fieldMeta when prepare returns incomplete metadata', async () => {
+      const skill = makeSkill('journal.entry', {
+        fieldSchema: z.object({
+          title: z.string(),
+          exercise_id: z.string(),
+        }),
+        questions: { title: 'Title?', exercise_id: 'Exercise?' },
+        fieldMeta: {
+          title: { inputType: 'text', label: 'Title' },
+          exercise_id: { inputType: 'choice', label: 'Exercise' },
+        },
+        prepare: async () => ({
+          title: { inputType: 'text', label: 'Title' },
+          exercise_id: {
+            label: 'Exercise',
+            options: [{ value: 'e1', label: 'Exercise 1' }],
+          } as any,
+        }),
+      })
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('journal.entry')
+
+      const specs = engine.getSnapshot().allFieldSpecs
+      const exerciseSpec = specs.find((s) => s.key === 'exercise_id')
+      expect(exerciseSpec?.inputType).toBe('choice')
+      expect(exerciseSpec?.options).toHaveLength(1)
+    })
+
+    it('fills missing fieldMeta entries from static definition', async () => {
+      const skill = makeSkill('journal.entry', {
+        fieldSchema: z.object({
+          title: z.string(),
+          category: z.string(),
+        }),
+        questions: { title: 'Title?', category: 'Category?' },
+        fieldMeta: {
+          title: { inputType: 'text', label: 'Title' },
+          category: { inputType: 'choice', label: 'Category', options: [{ value: 'a', label: 'A' }] },
+        },
+        prepare: async () => ({
+          title: { inputType: 'text', label: 'Title' },
+        }),
+      })
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('journal.entry')
+
+      const specs = engine.getSnapshot().allFieldSpecs
+      const categorySpec = specs.find((s) => s.key === 'category')
+      expect(categorySpec?.inputType).toBe('choice')
+      expect(categorySpec?.options).toHaveLength(1)
     })
   })
 
@@ -1492,6 +1581,103 @@ describe('ActionEngine', () => {
 
       expect(suggestions).toHaveLength(1)
       expect(suggestions[0].skillId).toBe('user.skill')
+    })
+  })
+
+  // ─── Crucible bug reproduction: choice fields from prepare() ─────
+
+  describe('choice fields with options from prepare()', () => {
+    it('renders choice field with prepare-provided options and stays in clarifying', async () => {
+      const skill = makeSkill('session.start', {
+        fieldSchema: z.object({
+          exercise_id: z.string(),
+        }),
+        questions: { exercise_id: 'Which exercise?' },
+        fieldMeta: {
+          exercise_id: { inputType: 'choice', label: 'Exercise' },
+        },
+        prepare: async (_actor, fieldMeta) => ({
+          ...fieldMeta,
+          exercise_id: {
+            ...fieldMeta.exercise_id,
+            options: [
+              { value: '1', label: 'Option 1' },
+              { value: '2', label: 'Option 2' },
+            ],
+          },
+        }),
+      })
+      const { engine } = setup([skill])
+
+      const result = await engine.selectSkill('session.start')
+      expect(result).toBe(true)
+
+      const snapshot = engine.getSnapshot()
+      const exerciseSpec = snapshot.allFieldSpecs.find((s) => s.key === 'exercise_id')
+
+      expect(exerciseSpec?.inputType).toBe('choice')
+      expect(exerciseSpec?.options).toHaveLength(2)
+      expect(exerciseSpec?.options?.[0].label).toBe('Option 1')
+      expect(snapshot.state.kind).toBe('clarifying')
+    })
+
+    it('does not auto-resolve when prepare provides multiple options', async () => {
+      const skill = makeSkill('session.start', {
+        fieldSchema: z.object({
+          exercise_id: z.string(),
+        }),
+        questions: { exercise_id: 'Which exercise?' },
+        fieldMeta: {
+          exercise_id: { inputType: 'choice', label: 'Exercise' },
+        },
+        prepare: async (_actor, fieldMeta) => ({
+          ...fieldMeta,
+          exercise_id: {
+            ...fieldMeta.exercise_id,
+            options: [
+              { value: '1', label: 'Option 1' },
+              { value: '2', label: 'Option 2' },
+            ],
+          },
+        }),
+      })
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('session.start')
+
+      const snapshot = engine.getSnapshot()
+      const exerciseSpec = snapshot.allFieldSpecs.find((s) => s.key === 'exercise_id')
+
+      expect(exerciseSpec?.autoResolved).not.toBe(true)
+      expect(snapshot.fields.exercise_id).toBeUndefined()
+    })
+
+    it('does not skip to validated when choice field has no value', async () => {
+      const skill = makeSkill('session.start', {
+        fieldSchema: z.object({
+          exercise_id: z.string(),
+        }),
+        questions: { exercise_id: 'Which exercise?' },
+        fieldMeta: {
+          exercise_id: { inputType: 'choice', label: 'Exercise' },
+        },
+        prepare: async (_actor, fieldMeta) => ({
+          ...fieldMeta,
+          exercise_id: {
+            ...fieldMeta.exercise_id,
+            options: [
+              { value: '1', label: 'Option 1' },
+              { value: '2', label: 'Option 2' },
+            ],
+          },
+        }),
+      })
+      const { engine } = setup([skill])
+
+      await engine.selectSkill('session.start')
+
+      expect(engine.state.kind).not.toBe('validated')
+      expect(engine.state.kind).toBe('clarifying')
     })
   })
 })
