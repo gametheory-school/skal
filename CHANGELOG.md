@@ -3,6 +3,18 @@
 All notable changes to `@gametheory-school/skal` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com); versioning follows [semver](https://semver.org).
 
+## [0.6.4] — 2026-09-17
+
+### Changed
+
+- **Unmatched-choice warning precision**: `choiceWarnings()` now quotes only the unmatched remainder tokens in warning messages instead of the full input text. E.g., "nudge tuvalu" produces `No match for "tuvalu" in Coachee` instead of `No match for "nudge tuvalu" in Coachee`. Known words (skill ID, description, field labels, already-assigned values) are filtered out.
+
+- **Aggregated warning banner**: ActionCard now renders a single consolidated warning banner when multiple choice fields have no match, instead of one banner per field. The banner lists all affected field labels comma-joined: `No match for "tuvalu" in Coachee, Type. Please choose an option manually.` Engine API (`warnings: Record<string, string>`) is unchanged — aggregation is render-side only.
+
+### Consumer impact
+
+- No API change. Warnings render automatically via ActionCard. Consumers with custom warning UI can continue using the per-field `warnings` record from `EngineSnapshot`.
+
 ## [0.6.3] — 2026-09-17
 
 ### Added

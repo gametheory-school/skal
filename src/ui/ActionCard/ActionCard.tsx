@@ -139,15 +139,26 @@ export function ActionCard(props: ActionCardProps) {
           </div>
         </div>
 
-        {Object.entries(props.warnings ?? {}).map(([key, message]) => {
-          const field = [...props.requiredFields, ...props.optionalFields].find((spec) => spec.key === key)
-          if (field?.options?.some((option) => option.value === localFields[key])) return null
+        {(() => {
+          const warningEntries = Object.entries(props.warnings ?? {}).filter(([key]) => {
+            const field = [...props.requiredFields, ...props.optionalFields].find((spec) => spec.key === key)
+            return !field?.options?.some((option) => option.value === localFields[key])
+          })
+          if (warningEntries.length === 0) return null
+          
+          const labels = warningEntries.map(([key]) => {
+            const field = [...props.requiredFields, ...props.optionalFields].find((spec) => spec.key === key)
+            return field?.label ?? key
+          })
+          const firstMessage = warningEntries[0][1]
+          const unmatchedText = firstMessage.match(/No match for "(.+?)" in/)?.[1] ?? ''
+          
           return (
-            <p key={key} role="status" className="mb-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              {message}
+            <p role="status" className="mb-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              No match for &quot;{unmatchedText}&quot; in {labels.join(', ')}. Please choose an option manually.
             </p>
           )
-        })}
+        })()}
 
         {mode === 'form' ? (
           <>

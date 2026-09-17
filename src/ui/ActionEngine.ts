@@ -521,16 +521,20 @@ export class ActionEngine {
         return [String(value), option?.label ?? '']
       }),
     ].join(' ')))
+    
+    const inputWords = words(text)
     // Intent-only input or values already assigned to another field are not failed choices.
-    if (!words(text).some((word) => !knownWords.has(word))) return {}
+    const unmatchedWords = inputWords.filter((word) => !knownWords.has(word))
+    if (unmatchedWords.length === 0) return {}
 
+    const unmatchedText = unmatchedWords.join(' ')
     const warnings: Record<string, string> = {}
     for (const field of this._allFieldSpecs) {
       if (
         field.inputType === 'choice' && field.options?.length &&
         (this._fields[field.key] == null || this._fields[field.key] === '')
       ) {
-        warnings[field.key] = `No match for "${text.trim()}" in ${field.label}. Please choose an option manually.`
+        warnings[field.key] = `No match for "${unmatchedText}" in ${field.label}. Please choose an option manually.`
       }
     }
     return warnings

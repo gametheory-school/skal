@@ -263,6 +263,7 @@ The TaskManager component needs a scheduling story for skills that fire on a cad
 
 | Item | Shipped | Notes |
 |------|---------|-------|
+| Warning precision + banner aggregation | v0.6.4 (2026-09-17) | choiceWarnings() quotes unmatched-only tokens; ActionCard merges per-field warnings into single banner |
 | Unmatched choice warnings + SkillRegistry export | v0.6.3 (2026-09-17) | P4: amber warning pills for unmatched names; P3: SkillRegistry re-exported from skal/ui; router scoring robustness (overlap+coverage) |
 | Cancel button on forms | v0.6.0 (2026-09-16) | Secondary button next to Submit in capturing/clarifying; calls onReset |
 | Word-level choice extraction | v0.6.0 (2026-09-16) | normalize() helper, two-phase matching (exact then word-score); "clara" → "Clara Chen" |

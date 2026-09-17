@@ -778,7 +778,7 @@ describe('ActionEngine', () => {
       expect(engine.state.kind).toBe('clarifying')
       expect(engine.getSnapshot().fields.coachee).toBeUndefined()
       expect(engine.getSnapshot().warnings.coachee).toBe(
-        'No match for "nudge tuvalu" in Coachee. Please choose an option manually.',
+        'No match for "tuvalu" in Coachee. Please choose an option manually.',
       )
       expect(engine.activeAction.warnings).toEqual(engine.getSnapshot().warnings)
     })
@@ -918,6 +918,23 @@ describe('ActionEngine', () => {
       engine.submitFields({})
       expect(engine.state.kind).toBe('validated')
       expect(engine.getSnapshot().warnings).toEqual({})
+    })
+
+    it('generates per-field warnings with unmatched-only tokens for multiple fields', async () => {
+      const skill = makeSkill('coach.nudge', {
+        description: 'Nudge a coachee',
+        fieldSchema: z.object({ coachee: z.string().min(1), type: z.string().min(1), message: z.string().min(1) }),
+        questions: { coachee: 'Which coachee?', type: 'What type?', message: 'What message?' },
+        fieldMeta: {
+          coachee: { inputType: 'choice', label: 'Coachee', options },
+          type: { inputType: 'choice', label: 'Type', options: [{ value: 'gentle', label: 'Gentle' }] },
+        },
+      })
+      const { engine } = setup([skill])
+      await engine.routeInput('nudge tuvalu')
+      const warnings = engine.getSnapshot().warnings
+      expect(warnings.coachee).toBe('No match for "tuvalu" in Coachee. Please choose an option manually.')
+      expect(warnings.type).toBe('No match for "tuvalu" in Type. Please choose an option manually.')
     })
   })
 
