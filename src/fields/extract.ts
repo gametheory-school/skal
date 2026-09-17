@@ -77,18 +77,44 @@ function parseNaturalDate(text: string): string | null {
   return null
 }
 
+function normalize(s: string): string {
+  return s.toLowerCase().replace(/[._-]+/g, ' ')
+}
+
 function extractChoice(
   text: string,
   field: FieldSpec,
 ): string | undefined {
   if (!field.options) return undefined
-  const lower = text.toLowerCase()
-  const match = field.options.find(
-    (opt) =>
-      lower.includes(opt.value.toLowerCase()) ||
-      lower.includes(opt.label.toLowerCase()),
-  )
-  return match?.value
+  const norm = normalize(text)
+
+  for (const opt of field.options) {
+    const vNorm = normalize(opt.value)
+    const lNorm = normalize(opt.label)
+    if (norm.includes(lNorm) || norm.includes(vNorm)) return opt.value
+  }
+
+  const inputWords = norm.split(/\s+/).filter((w) => w.length >= 3)
+  if (inputWords.length === 0) return undefined
+
+  let bestMatch: string | undefined
+  let bestScore = 0
+
+  for (const opt of field.options) {
+    const labelWords = normalize(opt.label).split(/\s+/)
+    let score = 0
+    for (const iw of inputWords) {
+      if (labelWords.some((lw) => lw.startsWith(iw) || iw.startsWith(lw))) {
+        score++
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score
+      bestMatch = opt.value
+    }
+  }
+
+  return bestMatch
 }
 
 // ─── Batch extraction ─────────────────────────────────────────────

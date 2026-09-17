@@ -199,12 +199,20 @@ export function ActionCard(props: ActionCardProps) {
               </>
             )}
 
-            <button
-              onClick={handleSubmit}
-              className="mt-2 w-full rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            >
-              Submit
-            </button>
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={props.onReset}
+                className="flex-1 rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="flex-1 rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              >
+                Submit
+              </button>
+            </div>
           </>
         ) : (
           <>

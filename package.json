@@ -43,16 +43,16 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
+    "next": ">=14.0.0",
     "react": ">=18.0.0",
-    "react-dom": ">=18.0.0",
-    "next": ">=14.0.0"
+    "react-dom": ">=18.0.0"
   },
   "devDependencies": {
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "next": "16.2.12",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "next": "16.2.12",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",
     "vitest": "^4.0.0"

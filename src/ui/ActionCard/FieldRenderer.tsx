@@ -31,7 +31,11 @@ export function FieldRenderer({
 
       {renderInput(field, value, onChange, id)}
 
-      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+      {error && (
+        <p className="mt-1 inline-block rounded bg-red-50 px-2 py-0.5 text-xs text-red-700">
+          {error}
+        </p>
+      )}
     </div>
   )
 }
