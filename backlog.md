@@ -35,7 +35,7 @@ An item is **pullable** when: it's in "Ready to pull," all `depends on` items ar
 
 | Item | Tag | Why now |
 |------|-----|---------|
-| B5. Suggestion pills [Feature] | [Feature] | F3 done — pills can filter by page context; low-effort UX win for command bar |
+| _(nothing ready — pull from Foundation or wait for new item)_ | | |
 
 ### 2. Blocked
 
@@ -152,21 +152,6 @@ Add a microphone button to the Composer that captures audio via axon's Deepgram 
   - Consumer provides STT transport (axon Deepgram adapter)
   - Unit tests with mock STT provider
 
-### B5. Suggestion pills — auto-derived quick actions [Feature]
-
-Seed the Composer with clickable suggestion pills before the user types. Pills are context-dependent quick actions derived automatically from registered skill titles/questions. Clicking a pill feeds its text into `routeInput()` (same as typing it). Integrates with F3 (page context) to filter suggestions by current route.
-
-- **depends on:** F3 (page context awareness — pills filter by current route)
-- **blocks:** none
-- **Acceptance criteria:**
-  - Pills render above/below Composer when idle (no active skill)
-  - Pills auto-derived from skill definitions (title or question text)
-  - Pills filtered by page context (F3) when `routes` declared on skills
-  - Clicking a pill calls `routeInput(pillText)`
-  - Pills hidden when a skill is active (capturing/clarifying/validated state)
-  - Consumer can override/supplement auto-derived pills via prop
-  - Unit tests for derivation, filtering, and click behavior
-
 ---
 
 ## Polish
@@ -230,6 +215,7 @@ The TaskManager component needs a scheduling story for skills that fire on a cad
 
 | Item | Shipped | Notes |
 |------|---------|-------|
+| Suggestion pills (B5) | v0.8.0 (2026-09-17) | Auto-derived from skill descriptions, filtered by route (F3) + permission + role; CommandBar renders clickable pills; getSuggestions() async method; Suggestion type exported |
 | Actor mutability — setActor() (B1) | v0.7.1 (2026-09-17) | setActor() resets to idle, clears fields/errors/warnings, preserves route context, re-gates permissions; EngineSnapshot includes actor |
 | Page context awareness (F3) | v0.7.0 (2026-09-17) | Skill routes, setPageContext(), canSelect route filtering, classify route boost, defaultRouteMatcher prefix match, custom matchRoutes |
 | Warning precision + banner aggregation | v0.6.4 (2026-09-17) | choiceWarnings() quotes unmatched-only tokens; ActionCard merges per-field warnings into single banner |
@@ -257,11 +243,10 @@ The TaskManager component needs a scheduling story for skills that fire on a cad
 
 ```
 Foundation:
-  F3 (page context) ──→ B5 (suggestion pills filter by route)
+  F3 (page context) ──→ ✅ B5 (suggestion pills filter by route) — done v0.8.0
 
 Build:
   B4 (voice input) depends on axon B1 (Notetaker/Deepgram)
-  F3 (page context) ──→ B5 (suggestion pills)
 
 Polish:
   (no internal deps)
@@ -274,8 +259,9 @@ Grow:
 
 ```
 F1 (LLM fallback) ──→ improves extraction accuracy across all skills
-F3 (page context) ──→ B5 (suggestion pills filter by route)
+F3 (page context) ──→ ✅ B5 (suggestion pills) — done v0.8.0
 B1 (setActor) ──→ ✅ done v0.7.1 (consumer can delete key={mode} hack)
+B5 (suggestion pills) ──→ ✅ done v0.8.0
 B4 (voice input) ──→ depends on axon Deepgram STT
 F2 (TaskManager data) ──→ G2 (scheduling)
 P4 (unmatched feedback) ──→ improves extraction UX across all choice skills

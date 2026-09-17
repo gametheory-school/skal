@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import type { Suggestion } from './ActionEngine.js'
 
 export interface CommandBarProps {
   onRoute: (text: string) => Promise<boolean>
   disabled: boolean
   placeholder?: string
+  suggestions?: Suggestion[]
 }
 
 /**
@@ -14,6 +16,7 @@ export function CommandBar({
   onRoute,
   disabled,
   placeholder = 'What would you like to do?',
+  suggestions = [],
 }: CommandBarProps) {
   const [text, setText] = useState('')
   const [classifying, setClassifying] = useState(false)
@@ -47,8 +50,35 @@ export function CommandBar({
     }
   }
 
+  const handlePillClick = async (pillText: string) => {
+    if (disabled || classifying) return
+    setClassifying(true)
+    setErrorMessage(null)
+    try {
+      await onRoute(pillText)
+    } catch {
+      setErrorMessage("Something went wrong. Please try again.")
+    } finally {
+      setClassifying(false)
+    }
+  }
+
   return (
     <div>
+      {suggestions.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {suggestions.map((s) => (
+            <button
+              key={s.skillId}
+              onClick={() => handlePillClick(s.text)}
+              disabled={disabled || classifying}
+              className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50"
+            >
+              {s.text}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex gap-2">
         <input
           type="text"

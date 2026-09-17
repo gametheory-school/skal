@@ -59,6 +59,13 @@ export interface ActionEngineConfig {
   matchRoutes?: RouteMatcher
 }
 
+// ─── Suggestion ────────────────────────────────────────────────────
+
+export interface Suggestion {
+  text: string
+  skillId: string
+}
+
 // ─── Default Route Matcher ─────────────────────────────────────────
 
 /** Prefix match: skill route is a prefix of the current route. */
@@ -179,6 +186,27 @@ export class ActionEngine {
     if (!skill.routes?.length || !this._currentRoute) return true
     const matcher = this.config?.matchRoutes ?? defaultRouteMatcher
     return matcher(skill.routes, this._currentRoute)
+  }
+
+  /**
+   * Derive suggestion pills from registered skills.
+   * Filters by route (F3) and permission. Text is derived from
+   * skill.description (preferred) or id (fallback).
+   */
+  async getSuggestions(): Promise<Suggestion[]> {
+    const available = this.registry.availableFor(this.actor)
+    const suggestions: Suggestion[] = []
+
+    for (const skill of available) {
+      if (!this.skillMatchesRoute(skill)) continue
+      const allowed = await checkAtCompose(this.permissionGate, this.actor, skill.id)
+      if (!allowed) continue
+
+      const text = skill.description ?? skill.id.replace(/[._-]/g, ' ')
+      suggestions.push({ text, skillId: skill.id })
+    }
+
+    return suggestions
   }
 
   /**

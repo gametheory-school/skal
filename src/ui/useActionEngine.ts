@@ -11,7 +11,7 @@ import type {
 import type { ExtractionLLM } from '../fields/extract.js'
 import { SkillRegistry } from '../engine/registry.js'
 import { ActionEngine } from './ActionEngine.js'
-import type { ActionCardProps, EngineSnapshot, ActionEngineConfig } from './ActionEngine.js'
+import type { ActionCardProps, EngineSnapshot, ActionEngineConfig, Suggestion } from './ActionEngine.js'
 
 // ─── Hook options ──────────────────────────────────────────────────
 
@@ -36,6 +36,7 @@ export interface UseActionEngineReturn {
   preparing: EngineSnapshot['preparing']
   currentRoute: EngineSnapshot['currentRoute']
   actor: EngineSnapshot['actor']
+  suggestions: Suggestion[]
   activeAction: ActionCardProps
   routeInput: (text: string) => Promise<boolean>
   selectSkill: (skillId: string, extractedFields?: Record<string, unknown>) => Promise<boolean>
@@ -67,6 +68,7 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
 
   // Subscribe to engine state changes.
   const [snapshot, setSnapshot] = useState<EngineSnapshot>(() => engine.getSnapshot())
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
 
   useEffect(() => {
     const unsub = engine.subscribe(() => {
@@ -74,6 +76,15 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
     })
     return unsub
   }, [engine])
+
+  // Recompute suggestions when idle and relevant state changes.
+  useEffect(() => {
+    if (snapshot.state.kind !== 'idle') {
+      setSuggestions([])
+      return
+    }
+    engine.getSuggestions().then(setSuggestions)
+  }, [engine, snapshot.state.kind, snapshot.currentRoute, snapshot.actor])
 
   // Stable callbacks.
   const routeInput = useCallback(
@@ -160,6 +171,7 @@ export function useActionEngine(options: UseActionEngineOptions): UseActionEngin
     preparing: snapshot.preparing,
     currentRoute: snapshot.currentRoute,
     actor: snapshot.actor,
+    suggestions,
     activeAction,
     routeInput,
     selectSkill,

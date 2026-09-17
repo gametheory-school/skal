@@ -3,6 +3,20 @@
 All notable changes to `@gametheory-school/skal` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com); versioning follows [semver](https://semver.org).
 
+## [0.8.0] — 2026-09-17
+
+### Added
+
+- **Suggestion pills (B5)**: auto-derived quick-action pills rendered above the Composer input when the engine is idle. Pills are generated from registered skill definitions — `skill.description` is used as pill text when available, falling back to `skill.id` with dots/underscores/hyphens replaced by spaces. `getSuggestions()` async method on ActionEngine filters pills by actor role (`availableFor`), page context (F3 route matching), and compose-time permission (`checkAtCompose`). CommandBar renders pills as clickable buttons; clicking a pill calls `routeInput(pillText)`. Pills hidden when a skill is active. `Suggestion` type (`{ text: string; skillId: string }`) exported from UI entry. `useActionEngine` hook recomputes suggestions automatically when state, route, or actor changes.
+
+### Consumer impact
+
+- **New method**: `engine.getSuggestions(): Promise<Suggestion[]>`.
+- **New type**: `Suggestion` exported from `@gametheory-school/skal/ui`.
+- **CommandBar prop**: `suggestions?: Suggestion[]` — pass from hook's `suggestions` return value.
+- **Hook return**: `suggestions: Suggestion[]` added to `UseActionEngineReturn`.
+- **Non-breaking**: existing consumers unaffected. Pills are opt-in via CommandBar prop.
+
 ## [0.7.1] — 2026-09-17
 
 ### Added

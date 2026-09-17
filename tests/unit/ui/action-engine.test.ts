@@ -1403,4 +1403,95 @@ describe('ActionEngine', () => {
       expect(engine.activeSkill?.id).toBe('test.skill')
     })
   })
+
+  describe('getSuggestions()', () => {
+    it('derives pill text from skill description', async () => {
+      const skill = makeSkill('journal.entry', {
+        description: 'Create a journal entry',
+      })
+      const { engine } = setup([skill])
+
+      const suggestions = await engine.getSuggestions()
+
+      expect(suggestions).toEqual([
+        { text: 'Create a journal entry', skillId: 'journal.entry' },
+      ])
+    })
+
+    it('falls back to id when no description', async () => {
+      const skill = makeSkill('journal.entry', { description: undefined })
+      const { engine } = setup([skill])
+
+      const suggestions = await engine.getSuggestions()
+
+      expect(suggestions).toEqual([
+        { text: 'journal entry', skillId: 'journal.entry' },
+      ])
+    })
+
+    it('filters by route when currentRoute is set', async () => {
+      const dashSkill = makeSkill('dash.skill', {
+        description: 'Dashboard action',
+        routes: ['/dashboard'],
+      })
+      const settingsSkill = makeSkill('settings.skill', {
+        description: 'Settings action',
+        routes: ['/settings'],
+      })
+      const { engine } = setup([dashSkill, settingsSkill])
+
+      engine.setPageContext('/dashboard')
+      const suggestions = await engine.getSuggestions()
+
+      expect(suggestions).toHaveLength(1)
+      expect(suggestions[0].skillId).toBe('dash.skill')
+    })
+
+    it('includes skills without routes regardless of currentRoute', async () => {
+      const globalSkill = makeSkill('global.skill', {
+        description: 'Global action',
+      })
+      const routeSkill = makeSkill('route.skill', {
+        description: 'Routed action',
+        routes: ['/dashboard'],
+      })
+      const { engine } = setup([globalSkill, routeSkill])
+
+      engine.setPageContext('/settings')
+      const suggestions = await engine.getSuggestions()
+
+      expect(suggestions).toHaveLength(1)
+      expect(suggestions[0].skillId).toBe('global.skill')
+    })
+
+    it('filters by permission gate', async () => {
+      const allowed = makeSkill('allowed.skill', { description: 'Allowed' })
+      const denied = makeSkill('denied.skill', { description: 'Denied' })
+      const gate: PermissionGate = {
+        can: async (_actor, action) => action !== 'denied.skill',
+      }
+      const { engine } = setup([allowed, denied], gate)
+
+      const suggestions = await engine.getSuggestions()
+
+      expect(suggestions).toHaveLength(1)
+      expect(suggestions[0].skillId).toBe('allowed.skill')
+    })
+
+    it('filters by actor role via availableFor', async () => {
+      const adminSkill = makeSkill('admin.skill', {
+        description: 'Admin action',
+        requiredRole: 'admin',
+      })
+      const userSkill = makeSkill('user.skill', {
+        description: 'User action',
+      })
+      const { engine } = setup([adminSkill, userSkill])
+
+      const suggestions = await engine.getSuggestions()
+
+      expect(suggestions).toHaveLength(1)
+      expect(suggestions[0].skillId).toBe('user.skill')
+    })
+  })
 })
