@@ -40,6 +40,7 @@ export type {
   ExtractionResult,
   ExtractionLLM,
   ChatMessage,
+  CustomExtractors,
 } from './fields/extract.js'
 
 export type { ValidationResult } from './fields/validate.js'

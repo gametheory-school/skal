@@ -17,6 +17,15 @@ export interface ExtractionResult {
   missing: string[]
 }
 
+// ─── Custom extractors ────────────────────────────────────────────
+
+/**
+ * Per-inputType extractor overrides.
+ * Consumer provides these to replace built-in extraction for specific types.
+ * Return undefined to fall through to the built-in extractor.
+ */
+export type CustomExtractors = Partial<Record<InputType, (text: string, field: FieldSpec) => unknown | undefined>>
+
 // ─── Deterministic extractors by input type ───────────────────────
 
 // Matches an email anywhere in the text (no anchors).
@@ -35,16 +44,25 @@ const ISO_DATE_REGEX =
 export function extractDeterministic(
   text: string,
   field: FieldSpec,
+  customExtractors?: CustomExtractors,
 ): unknown | undefined {
+  // Check for custom extractor first
+  const custom = customExtractors?.[field.inputType]
+  if (custom) {
+    const result = custom(text, field)
+    if (result !== undefined) return result
+  }
+
   switch (field.inputType) {
     case 'email':
+      return extractEmail(text)
+    case 'contact':
       return extractEmail(text)
     case 'datetime':
       return extractDatetime(text)
     case 'choice':
       return extractChoice(text, field)
     case 'text':
-    case 'contact':
     default:
       return undefined
   }
@@ -126,12 +144,13 @@ function extractChoice(
 export function extractFields(
   text: string,
   fields: FieldSpec[],
+  customExtractors?: CustomExtractors,
 ): ExtractionResult {
   const extracted: Record<string, unknown> = {}
   const missing: string[] = []
 
   for (const field of fields) {
-    const value = extractDeterministic(text, field)
+    const value = extractDeterministic(text, field, customExtractors)
     if (value !== undefined) {
       extracted[field.key] = value
     } else {
