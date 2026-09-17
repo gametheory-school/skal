@@ -3,6 +3,20 @@
 All notable changes to `@gametheory-school/skal` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com); versioning follows [semver](https://semver.org).
 
+## [0.8.2] — 2026-09-17
+
+### Added
+
+- **Shared field validation utilities**: new `src/fields/validate-field.ts` module, exported from the universal entry point. Provides client-side, per-field validation that mirrors server-side rules without timezone-aware datetime parsing:
+  - `validateFieldValue(spec, value): string | null` — validates a single field value against its `FieldSpec`. Handles required, email (single and comma-separated lists), contact, and choice inputs. Returns an error message or `null` when valid. Datetime is intentionally not handled (needs timezone context — validate server-side).
+  - `getInitialFieldValue(spec, value): string` — converts a field's `currentValue` to a string for form input, including joining attendee arrays into comma-separated lists.
+  - `EMAIL_RE` — the conservative email regex used by both functions, exported for consumers that need consistent validation elsewhere.
+
+### Consumer impact
+
+- **Non-breaking**: additive exports only. Existing consumers unaffected.
+- Useful for form components that validate per-field as the user types (e.g. pre-dispatch client checks) while keeping authoritative validation in the engine/handler.
+
 ## [0.8.1] — 2026-09-17
 
 ### Fixed

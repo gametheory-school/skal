@@ -11,6 +11,11 @@ export {
   extractDeterministic,
 } from './fields/extract.js'
 export { validateFields, buildFieldSpecs } from './fields/validate.js'
+export {
+  validateFieldValue,
+  getInitialFieldValue,
+  EMAIL_RE,
+} from './fields/validate-field.js'
 
 // ─── Permissions ──────────────────────────────────────────────────
 export { checkAtCompose, checkBeforeDispatch } from './permissions/gate.js'
